@@ -1,0 +1,13 @@
+{
+  "name": "ondc-fis15-specifications",
+  "version": "0.2.0",
+  "private": true,
+  "description": "ONDC FIS15 (Fixed Deposit) API specifications. attributes/ holds the OpenAPI documents; examples/ holds the payloads they reference.",
+  "scripts": {
+    "bundle": "node scripts/bundle.mjs",
+    "validate": "node scripts/bundle.mjs --validate-only"
+  },
+  "devDependencies": {
+    "@apidevtools/swagger-cli": "^4.0.4"
+  }
+}
