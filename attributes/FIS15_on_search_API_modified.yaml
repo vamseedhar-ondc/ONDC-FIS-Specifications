@@ -1,0 +1,868 @@
+openapi: 3.0.0
+info:
+  title: ONDC FIS15 — On Search API
+  description: 'BPP → BAP catalog delivery for fixed deposits. Sent solicited in reply to a /search, and unsolicited on every
+    subsequent catalog change once the BAP has registered via INCREMENTAL_PULL.REGISTER.
+
+    The catalog is INDICATIVE. It carries enough precision for a buyer app''s compare-and-slider experience, but it is not
+    the contract: the rate is priced at /on_select once amount, tenure, payout mode and claimed depositor category are pinned,
+    and restated as binding on the terminal /on_init. This is what lets an existing customer be offered a preferential rate the public card cannot
+    express.
+
+    Structurally the payload is a three-level catalog — a category taxonomy, the products, and the rate card carried as repeated
+    tag groups on each product. A realistic card is large: the worked ICICI example below carries 22 rate cells and 9 adjustment
+    rules for a single product.
+
+    Domain code ONDC:FIS15 and error range 832001-832042 are requested from ONDC and not yet allocated.'
+  version: 0.2.0
+servers:
+- url: https://api.buyerapp.com/ondc
+  description: BAP (buyer app) callback endpoint
+paths:
+  /on_search:
+    post:
+      summary: Deliver the fixed-deposit catalog
+      description: 'Returns an ACK/NACK synchronously. Sent in one of three situations — (a) in reply to a full-pull /search,
+        carrying the entire catalog; (b) in reply to a delta-pull /search, carrying only items changed since CHANGES_FROM;
+        (c) unsolicited, with no preceding /search, whenever a registered BAP''s catalog changes.
+
+        In cases (b) and (c) the BPP sends the ENTIRE item — product information, every rate cell, every adjustment and every
+        payout option — never an individual changed cell. A partial item is not a valid update.'
+      operationId: onSearch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnSearchRequest'
+            examples:
+              ICICI_regular_fd:
+                summary: ICICI Bank regular FD — two amount slabs, all tenure buckets
+                description: A single callable FD product whose rate card spans both the retail slab (below Rs 3 crore, 9
+                  tenure buckets) and the bulk slab (Rs 3 crore to under Rs 5 crore, 13 tenure buckets), with explicit GENERAL
+                  and SENIOR_CITIZEN rate cells; RATE_ADJUSTMENT is retained only as optional compression. Rates and tenure
+                  buckets are transcribed from ICICI's published card; penalty tiers, TDS thresholds and VKYC terms are illustrative,
+                  since no rate table publishes them.
+                value:
+                  $ref: '../examples/on_search/fis15-on_search-icici-fd_modified.json'
+      responses:
+        default:
+          description: ACK / NACK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ack'
+components:
+  schemas:
+    OnSearchRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - context
+      - message
+      properties:
+        context:
+          allOf:
+          - $ref: '#/components/schemas/Context'
+          - type: object
+            required:
+            - action
+            - bpp_id
+            - bpp_uri
+            properties:
+              action:
+                enum:
+                - on_search
+        message:
+          type: object
+          additionalProperties: false
+          required:
+          - catalog
+          properties:
+            catalog:
+              $ref: '#/components/schemas/Catalog'
+    Context:
+      type: object
+      additionalProperties: false
+      required:
+      - location
+      - domain
+      - action
+      - version
+      - bap_id
+      - bap_uri
+      - bpp_id
+      - bpp_uri
+      - transaction_id
+      - message_id
+      - timestamp
+      - ttl
+      properties:
+        location:
+          type: object
+          additionalProperties: false
+          required:
+          - country
+          - city
+          properties:
+            country:
+              type: object
+              properties:
+                code:
+                  type: string
+                  enum:
+                  - IND
+            city:
+              type: object
+              properties:
+                code:
+                  type: string
+                  enum:
+                  - '*'
+        domain:
+          type: string
+          enum:
+          - ONDC:FIS15
+        action:
+          type: string
+          enum:
+          - on_search
+        version:
+          type: string
+          example: 0.2.0
+        bap_id:
+          type: string
+          example: api.buyerapp.com
+        bap_uri:
+          type: string
+          format: uri
+        bpp_id:
+          type: string
+          example: api.icicibank.com
+          description: Mandatory here, unlike /search where it is omitted.
+        bpp_uri:
+          type: string
+          format: uri
+        transaction_id:
+          type: string
+          format: uuid
+          description: Echoes the /search that solicited this catalog. On an UNSOLICITED on_search there is no preceding request,
+            so the BPP mints a fresh transaction_id; the BAP must not expect to correlate it.
+        message_id:
+          type: string
+          format: uuid
+        timestamp:
+          type: string
+          format: date-time
+        ttl:
+          type: string
+          example: PT10M
+    Catalog:
+      type: object
+      additionalProperties: false
+      required:
+      - descriptor
+      - providers
+      properties:
+        descriptor:
+          $ref: '#/components/schemas/Descriptor'
+        providers:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Provider'
+          description: One provider per ISSUING ENTITY. A seller app fronting several banks sends one provider per bank; it
+            never aggregates products from multiple issuers under a single provider. This rule is what makes items[].creator
+            redundant — see x-ondc-fis15.decisions.
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/TagGroup'
+          description: Carries BPP_TERMS.
+    Provider:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - descriptor
+      - categories
+      - items
+      - fulfillments
+      - tags
+      properties:
+        id:
+          type: string
+          example: icici_fd
+          description: Echoed on every later call in the transaction.
+        descriptor:
+          $ref: '#/components/schemas/Descriptor'
+        categories:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Category'
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Item'
+        fulfillments:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Fulfillment'
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/TagGroup'
+          description: Carries ISSUER_INFORMATION. Mandatory.
+    Category:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - descriptor
+      properties:
+        id:
+          type: string
+        descriptor:
+          type: object
+          required:
+          - code
+          - name
+          properties:
+            code:
+              type: string
+              enum:
+              - FIXED_DEPOSIT
+              - FD_REGULAR
+              - FD_TAX_SAVER
+              - FD_SPECIAL_TENURE
+              - FD_SENIOR_CITIZEN
+              - FD_FLEXI
+              - FD_NRE
+              - FD_NRO
+            name:
+              type: string
+        parent_category_id:
+          type: string
+          description: Absent only on the root FIXED_DEPOSIT node. FD's taxonomy is two levels deep, so this never chains
+            beyond one hop — retained for structural parity with FIS14 and to leave room for deeper nesting.
+    Item:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - descriptor
+      - category_ids
+      - fulfillment_ids
+      - tags
+      description: One bookable FD product. Its rate card lives in repeated RATE_CARD_ENTRY tag groups; each rate cell explicitly
+        identifies the DEPOSITOR_CATEGORY and INTEREST_RATE. RATE_ADJUSTMENT groups may optionally compress a uniform category
+        uplift. Payout modes live in repeated PAYOUT_OPTION groups.
+      properties:
+        id:
+          type: string
+          example: icici_fd_regular
+        descriptor:
+          type: object
+          required:
+          - name
+          - code
+          properties:
+            name:
+              type: string
+            code:
+              type: string
+              enum:
+              - DEPOSIT_PRODUCT
+              - SERVICE
+        category_ids:
+          type: array
+          minItems: 1
+          items:
+            type: string
+        fulfillment_ids:
+          type: array
+          minItems: 1
+          items:
+            type: string
+        matched:
+          type: boolean
+          description: Whether the item matched the search intent.
+        ttl:
+          type: string
+          example: P1D
+          description: Cache lifetime for this item. FD rate cards reprice daily, so a BAP that has not registered for pushes
+            should treat an expired ttl as a trigger for a delta pull.
+        tags:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/TagGroup'
+    Fulfillment:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - type
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum:
+          - DEPOSIT
+          - INTEREST_PAYOUT
+          - MATURITY_PAYOUT
+          - AUTO_RENEWAL
+          - KYC
+          description: A thing the issuer DELIVERS. The servicing types and, in this revision, PREMATURE_WITHDRAWAL and PARTIAL_WITHDRAWAL were retired
+            in this revision — servicing is not a fulfillment, and what a product will service is advertised on PRODUCT_INFORMATION
+            instead. See decisions.servicing-types-retired.
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/TagGroup'
+          description: VKYC_TERMS at catalog level is INDICATIVE — the issuer may require VKYC of one investor and not another.
+            The binding value arrives on the terminal /on_init.
+    TagGroup:
+      type: object
+      additionalProperties: false
+      required:
+      - descriptor
+      - list
+      properties:
+        display:
+          type: boolean
+          default: false
+        descriptor:
+          $ref: '#/components/schemas/Descriptor'
+        list:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Tag'
+    Tag:
+      type: object
+      additionalProperties: false
+      required:
+      - descriptor
+      - value
+      properties:
+        descriptor:
+          $ref: '#/components/schemas/Descriptor'
+        value:
+          type: string
+        display:
+          type: boolean
+    Descriptor:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        code:
+          type: string
+    Ack:
+      type: object
+      properties:
+        message:
+          type: object
+          properties:
+            ack:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum:
+                  - ACK
+                  - NACK
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+  x-ondc-fis15:
+    tag-groups:
+      ISSUER_INFORMATION:
+        level: provider
+        required: mandatory
+        list:
+          ISSUER_TYPE:
+            required: mandatory
+            enum:
+            - SCHEDULED_COMMERCIAL_BANK
+            - SMALL_FINANCE_BANK
+            - NBFC_D
+          ISSUER_LEGAL_NAME:
+            required: mandatory
+          DICGC_INSURED:
+            required: mandatory
+            enum:
+            - 'true'
+            - 'false'
+            description: true for SCB and SFB, false for NBFC-D. The COVER LIMIT and COVER BASIS are statutory constants and
+              no longer travel on the wire; the disclosure obligation they carried is now a buyer-app conformance rule — see
+              rules.
+          CREDIT_RATING:
+            required: conditional
+            description: Mandatory for NBFC_D. Must be investment grade, BBB- or better.
+          CREDIT_RATING_AGENCY:
+            required: conditional
+          CREDIT_RATING_AS_ON:
+            required: conditional
+            type: date
+            description: Ratings are refreshed at least annually.
+      PRODUCT_INFORMATION:
+        level: item
+        required: mandatory
+        cardinality: once per item
+        list:
+          STATUS:
+            required: mandatory
+            enum:
+            - active
+            - inactive
+          PRODUCT_TYPE:
+            required: mandatory
+            description: Mirrors the item's category code.
+          AMOUNT_MIN:
+            required: mandatory
+            type: decimal
+          AMOUNT_MAX:
+            required: mandatory
+            type: decimal
+          AMOUNT_MULTIPLES:
+            required: mandatory
+            type: decimal
+          TENURE_MIN_DAYS:
+            required: mandatory
+            type: integer
+            description: 7 for banks; 365 for NBFC-D.
+          TENURE_MAX_DAYS:
+            required: mandatory
+            type: integer
+            description: 1800 (60 months) for NBFC-D.
+          LOCKIN_PERIOD_DAYS:
+            required: optional
+            type: integer
+            description: 1825 for tax-saver products.
+          PREMATURE_WITHDRAWAL_ALLOWED:
+            required: mandatory
+            enum:
+            - 'true'
+            - 'false'
+          PARTIAL_WITHDRAWAL_ALLOWED:
+            required: mandatory
+            enum:
+            - 'true'
+            - 'false'
+          AUTO_RENEWAL_SUPPORTED:
+            required: mandatory
+            enum:
+            - 'true'
+            - 'false'
+          SECTION_80C_ELIGIBLE:
+            required: optional
+            enum:
+            - 'true'
+            - 'false'
+          NOMINEE_UPDATE_ALLOWED:
+            required: mandatory
+            enum:
+            - 'true'
+            - 'false'
+            description: ADDED IN THIS REVISION. Whether a nominee can be changed after booking, via /update. Nomination is
+              restricted to individual and joint holdings, so this is false for a corporate product regardless of issuer policy.
+          MATURITY_INSTRUCTION_UPDATE_ALLOWED:
+            required: mandatory
+            enum:
+            - 'true'
+            - 'false'
+            description: ADDED IN THIS REVISION. Whether the maturity instruction can be changed after booking, via /update.
+          MATURITY_INSTRUCTION_CUTOFF_DAYS:
+            required: conditional
+            type: integer
+            description: ADDED IN THIS REVISION. Mandatory when MATURITY_INSTRUCTION_UPDATE_ALLOWED is true. How many days
+              before MATURITY_DATE the instruction freezes. Published here for the same reason PAYMENT_OPTION is published
+              at the terminal /on_init — a limit the buyer app can only discover by being refused is a limit in the wrong
+              place. Inside this window /update answers 832038.
+          DOCUMENT_REQUEST_SUPPORTED:
+            required: mandatory
+            enum:
+            - 'true'
+            - 'false'
+            description: ADDED IN THIS REVISION. Whether interest certificates and tax forms can be pulled through /update,
+              or whether the investor must go to the issuer's own channel for them.
+          PRODUCT_TNC:
+            required: mandatory
+            type: uri
+            description: Terms the investor must clickwrap-accept before /init.
+      RATE_CARD_ENTRY:
+        level: item
+        required: mandatory
+        cardinality: REPEATED — one group per rate cell
+        description: One cell of the tenure x amount x depositor-category grid. Each cell carries the explicit interest rate
+          applicable to one depositor category on a CUMULATIVE basis. Cells must tile the product's full tenure and amount
+          range with no gap and no overlap for each depositor category; a gap yields 832013 at /select.
+        list:
+          TENURE_MIN_DAYS:
+            required: mandatory
+            type: integer
+            description: Inclusive lower bound.
+          TENURE_MAX_DAYS:
+            required: mandatory
+            type: integer
+            description: Inclusive upper bound.
+          AMOUNT_MIN:
+            required: mandatory
+            type: decimal
+            description: Inclusive lower bound of the amount slab.
+          AMOUNT_MAX:
+            required: mandatory
+            type: decimal
+            description: Inclusive upper bound of the amount slab.
+          DEPOSITOR_CATEGORY:
+            required: mandatory
+            enum:
+            - GENERAL
+            - SENIOR_CITIZEN
+            - SUPER_SENIOR_CITIZEN
+            - STAFF
+            - NRE
+            - NRO
+            description: Depositor category for this explicit rate cell.
+          INTEREST_RATE:
+            required: mandatory
+            type: decimal
+            description: '% p.a. for the DEPOSITOR_CATEGORY on a CUMULATIVE basis.'
+          ANNUALISED_YIELD:
+            required: optional
+            type: decimal
+            description: Effective yield, (1 + i/N)^N - 1.
+          COMPOUNDING_FREQUENCY:
+            required: mandatory
+            type: duration
+            description: ISO 8601. P3M is the market norm. Without it the rate is not comparable across issuers.
+          EFFECTIVE_FROM:
+            required: mandatory
+            type: date
+          EFFECTIVE_TILL:
+            required: optional
+            type: date
+            description: Last date this cell applies. Present on limited-period special tenures. Replaces the OFFER_INFORMATION
+              group — see decisions.
+      RATE_ADJUSTMENT:
+        level: item
+        required: optional
+        cardinality: REPEATED — one group per (category x tenure window x amount slab)
+        description: Optional compressed pricing rule for a depositor category when the same signed uplift applies across
+          multiple base rate cells. An explicit RATE_CARD_ENTRY for the same (category, tenure, amount) takes precedence over
+          RATE_ADJUSTMENT. Exactly one pricing path must resolve any (category, tenure, amount) triple.
+        list:
+          DEPOSITOR_CATEGORY:
+            required: mandatory
+            enum:
+            - SENIOR_CITIZEN
+            - SUPER_SENIOR_CITIZEN
+            - STAFF
+            - NRE
+            - NRO
+          ADJUSTMENT_BPS:
+            required: mandatory
+            type: integer
+            description: Signed basis points. 0 is meaningful — it says "no uplift here".
+          TENURE_MIN_DAYS:
+            required: optional
+            type: integer
+          TENURE_MAX_DAYS:
+            required: optional
+            type: integer
+          AMOUNT_MIN:
+            required: optional
+            type: decimal
+            description: ADDED IN THIS REVISION. Without a lower bound, an uplift that applies to one amount slab and not
+              another cannot be expressed. ICICI's card requires it — see decisions.rate-adjustment-amount-min.
+          AMOUNT_MAX:
+            required: optional
+            type: decimal
+      PAYOUT_OPTION:
+        level: item
+        required: mandatory
+        cardinality: REPEATED — one group per supported payout frequency
+        list:
+          PAYOUT_FREQUENCY:
+            required: mandatory
+            enum:
+            - CUMULATIVE
+            - MONTHLY
+            - QUARTERLY
+            - HALF_YEARLY
+            - ANNUAL
+          ADJUSTMENT_BPS:
+            required: mandatory
+            type: integer
+            description: Signed adjustment vs the cumulative card rate. Monthly payout is typically discounted.
+          TENURE_MIN_DAYS:
+            required: optional
+            type: integer
+      PREMATURE_WITHDRAWAL_TERMS:
+        level: item
+        required: conditional
+        cardinality: once per item
+        description: Mandatory when PRODUCT_INFORMATION.PREMATURE_WITHDRAWAL_ALLOWED is true.
+        list:
+          MIN_LOCKIN_DAYS:
+            required: mandatory
+            type: integer
+            description: 0 for most bank FDs; 90 for NBFC-D under the RBI directions.
+          RATE_BASIS:
+            required: mandatory
+            enum:
+            - CARD_RATE_FOR_RUN_TENURE
+            - CONTRACTED_RATE_LESS_SPREAD
+            description: 'CARD_RATE_FOR_RUN_TENURE — bank convention: interest recomputed at the card rate for the tenure
+              actually completed, then penalised. CONTRACTED_RATE_LESS_SPREAD — NBFC-D convention under the RBI directions:
+              a fixed spread below the ORIGINALLY CONTRACTED rate, with no re-rating. The two produce materially different
+              payouts.'
+      PENALTY_TIER:
+        level: item
+        required: conditional
+        cardinality: REPEATED — one group per elapsed-time band
+        description: ADDED IN THIS REVISION, replacing the single PENALTY_BPS / PENALTY_AMOUNT / NO_INTEREST_BEFORE_DAYS fields.
+          Mandatory when PREMATURE_WITHDRAWAL_ALLOWED is true. Tiers must tile 0 to TENURE_MAX_DAYS with no gap.
+        list:
+          FROM_DAYS:
+            required: mandatory
+            type: integer
+            description: Inclusive lower bound of elapsed days.
+          TO_DAYS:
+            required: mandatory
+            type: integer
+            description: Inclusive upper bound of elapsed days.
+          PENALTY_TYPE:
+            required: mandatory
+            enum:
+            - RATE_REDUCTION
+            - FLAT_FEE
+            - NO_INTEREST
+            - NONE
+          PENALTY_BPS:
+            required: conditional
+            type: integer
+            description: Mandatory when PENALTY_TYPE is RATE_REDUCTION.
+          PENALTY_AMOUNT:
+            required: conditional
+            type: decimal
+            description: Mandatory when PENALTY_TYPE is FLAT_FEE.
+      TAX_INFORMATION:
+        level: item
+        required: mandatory
+        cardinality: once per item
+        list:
+          TDS_APPLICABLE:
+            required: mandatory
+            enum:
+            - 'true'
+            - 'false'
+          TDS_SECTION:
+            required: mandatory
+            description: 194A.
+          TDS_RATE_WITH_PAN:
+            required: mandatory
+            type: decimal
+            description: '10.'
+          TDS_RATE_WITHOUT_PAN:
+            required: mandatory
+            type: decimal
+            description: '20.'
+          TDS_THRESHOLD_GENERAL:
+            required: mandatory
+            type: decimal
+            description: 50000 for banks; 10000 for NBFC-D.
+          TDS_THRESHOLD_SENIOR:
+            required: mandatory
+            type: decimal
+            description: 100000 for banks.
+          FORM_15G_15H_ACCEPTED:
+            required: optional
+            enum:
+            - 'true'
+            - 'false'
+            description: DEMOTED to optional in this revision. Nothing in the transaction branches on it; the declaration
+              is collected in the issuer's own KYC forms either way. Revisit when 15G/15H becomes a modelled servicing flow.
+      VKYC_TERMS:
+        level: fulfillment
+        required: optional
+        description: Indicative at catalog level. The binding value arrives on the terminal /on_init.
+        list:
+          VKYC_REQUIRED:
+            required: optional
+            enum:
+            - 'true'
+            - 'false'
+          VKYC_SEQUENCING:
+            required: optional
+            enum:
+            - PRE_PAYMENT
+            - POST_PAYMENT
+            - NOT_REQUIRED
+          VKYC_SLA:
+            required: optional
+            type: duration
+            description: e.g. P7D. Meaningful only when sequencing is POST_PAYMENT.
+      BPP_TERMS:
+        level: catalog
+        required: mandatory
+        list:
+          STATIC_TERMS:
+            required: mandatory
+            type: uri
+          OFFLINE_CONTRACT:
+            required: mandatory
+            enum:
+            - 'true'
+            - 'false'
+    rules:
+    - Rate cells must tile the product's full tenure and amount range with no gap and no overlap for each DEPOSITOR_CATEGORY.
+      Any (category, amount, tenure) triple inside PRODUCT_INFORMATION's declared bounds must resolve to exactly one explicit
+      RATE_CARD_ENTRY, or to one applicable RATE_ADJUSTMENT when no explicit category-specific cell exists.
+    - RATE_ADJUSTMENT is optional compression. For any (category, tenure, amount) triple, at most one adjustment may apply
+      when no explicit category-specific RATE_CARD_ENTRY exists. If an explicit RATE_CARD_ENTRY exists, it takes precedence
+      over the adjustment. Overlapping adjustments are a catalog defect.
+    - PENALTY_TIER groups must tile 0 to TENURE_MAX_DAYS with no gap.
+    - On a delta or unsolicited on_search the BPP sends the ENTIRE item, never a single changed cell.
+    - The catalog rate is INDICATIVE. /on_select prices a configuration; the terminal /on_init makes it binding.
+    - A BAP MUST display a deposit-insurance disclosure wherever DICGC_INSURED is false, and SHOULD refuse to render such
+      an item otherwise. The RBI-prescribed wording is a constant held by the network, not per-issuer data, which is why no
+      disclaimer string travels here.
+    - A BAP must not offer a servicing action the catalog does not permit. NOMINEE_UPDATE_ALLOWED, MATURITY_INSTRUCTION_UPDATE_ALLOWED
+      and DOCUMENT_REQUEST_SUPPORTED are what /update targets are checked against before the button is rendered, and
+      MATURITY_INSTRUCTION_CUTOFF_DAYS is checked against MATURITY_DATE before the instruction one is.
+    - Errors 832011 (product not active) and 832013 (no rate cell matches) on a later call mean the BAP's cache is stale —
+      run a delta pull before retrying.
+    decisions:
+      dropped-issuer-licence:
+        was: providers[].tags[ISSUER_INFORMATION].RBI_LICENCE_NUMBER
+        action: removed
+        why: ONDC onboarding already attests that the BPP is a licensed deposit-taker. Re-sending it on every catalog push
+          duplicates a network-level fact.
+      dropped-dicgc-constants:
+        was: DICGC_COVER_LIMIT, DICGC_COVER_BASIS, DEPOSIT_INSURANCE_DISCLAIMER
+        action: removed, obligation relocated
+        why: The Rs 5,00,000 ceiling and the principal-plus-interest basis are statutory constants identical for every insured
+          bank, and the NBFC disclaimer wording is prescribed by RBI. None is per-issuer data. The DISCLOSURE obligation survives
+          as a buyer-app conformance rule keyed off DICGC_INSURED — see rules.
+      dropped-item-creator:
+        was: items[].creator.descriptor.name
+        action: removed
+        why: In FIS14 the creator is the AMC and genuinely differs from the seller app. In FD the provider IS the issuer,
+          so creator duplicated provider.descriptor.name. Depends on the one-provider-per-issuer rule now stated on Catalog.providers.
+      dropped-offer-group:
+        was: items[].tags[OFFER_INFORMATION].*
+        action: removed, one field relocated
+        why: SPECIAL_OFFER, OFFER_CODE and OFFER_DESCRIPTION are merchandising — FD_SPECIAL_TENURE already exists as a category
+          code and a special tenure is fully expressed by a narrow rate cell. OFFER_VALID_TILL was the only field with teeth
+          and became RATE_CARD_ENTRY.EFFECTIVE_TILL, paired with the EFFECTIVE_FROM already there.
+        knock-on: Error 832017 (offer expired) is now dead. Retire it, or repoint it at EFFECTIVE_TILL.
+      rate-basis-enum:
+        was: RATE_BASIS with a single permitted value
+        action: real enum
+        why: A single-valued mandatory field is a smell, and the one value was wrong for half the network. Banks recompute
+          at the card rate for the run tenure; NBFC-D apply a fixed spread below the CONTRACTED rate under the RBI directions.
+          Both bases now exist.
+      penalty-tiers:
+        was: PENALTY_BPS, PENALTY_AMOUNT, NO_INTEREST_BEFORE_DAYS
+        action: replaced by the repeated PENALTY_TIER group
+        why: 'A single penalty number cannot express a tiered schedule. The RBI directions give NBFC-D two bands — no interest
+          between 3 and 6 months, then a fixed spread below contracted rate to maturity. A bank''s flat penalty is a single
+          tier, so the tier table subsumes both. NO_INTEREST_BEFORE_DAYS becomes redundant: it is a NO_INTEREST tier.'
+      rate-adjustment-amount-min:
+        was: RATE_ADJUSTMENT had AMOUNT_MAX but no AMOUNT_MIN
+        action: AMOUNT_MIN added
+        why: Found by encoding ICICI's real card. Its senior-citizen uplift is +50 bps on retail deposits from 7 days, but
+          ZERO on bulk deposits below 185 days. With only an upper bound those two rules cannot be told apart — the retail
+          rule would leak into the bulk slab. Disjoint amount windows need both bounds.
+      servicing-types-retired:
+        was: fulfillments[].type carrying NOMINEE_UPDATE, MATURITY_INSTRUCTION_UPDATE and DOCUMENT_REQUEST
+        action: removed, capability advertisement relocated to PRODUCT_INFORMATION
+        why: 'Two problems, one cause. A fulfillment is something the issuer delivers, and a nominee change is not — it is
+          a change to a deposit that goes on being delivered throughout, which is why /update reports it in SERVICING_STATUS
+          instead. And as a CAPABILITY signal the enum never worked: a catalog fulfillment carries an id and a type, so an
+          issuer could only advertise servicing by publishing empty fulfillment entries, which nothing asked it to do and the
+          worked ICICI example never did. The four new PRODUCT_INFORMATION flags say the same thing where a buyer app already
+          looks for what a product permits, next to PREMATURE_WITHDRAWAL_ALLOWED and AUTO_RENEWAL_SUPPORTED.'
+        knock-on: 'Closes servicing-cutoffs-not-published in FIS15_update_API.yaml — MATURITY_INSTRUCTION_CUTOFF_DAYS is the
+          limit that open point asked for. A BAP can now grey out a servicing action rather than offer it and collect an 832038.'
+      form-15g-15h-demoted:
+        was: FORM_15G_15H_ACCEPTED mandatory
+        action: demoted to optional
+        why: Nothing in the transaction branches on it. It is a comparison signal for the investor, not a protocol input.
+    open-points:
+      additive-vs-explicit-senior-rates:
+        status: resolved
+        question: Encoding ICICI's card needed NINE RATE_ADJUSTMENT groups for one product, because the senior uplift varies
+          across BOTH axes — 0, +25, +50 and +60 bps depending on tenure band and amount slab. The additive model compresses
+          well only when an issuer's uplift is uniform, and real cards are not.
+        options:
+        - Keep additive only. Cheap when uniform, awkward and error-prone when not.
+        - Add an optional DEPOSITOR_CATEGORY to RATE_CARD_ENTRY so a cell can carry an explicit rate for a category, with
+          an explicit cell winning over any adjustment. Matches how banks actually publish (two full columns), at the cost
+          of two ways to express one thing.
+        recommendation: Every published category-specific rate should be representable directly as a RATE_CARD_ENTRY. Use
+          RATE_ADJUSTMENT only when it materially reduces repetition. If both exist for the same category/tenure/amount, the
+          explicit RATE_CARD_ENTRY wins.
+        decision: Use explicit DEPOSITOR_CATEGORY inside RATE_CARD_ENTRY as the canonical representation of category-specific
+          rates. RATE_ADJUSTMENT remains optional as a compression mechanism for genuinely uniform uplifts.
+      rate-card-cardinality:
+        status: unresolved
+        question: The worked ICICI example is 39 tag groups for ONE product covering two amount slabs. An issuer with four
+          slabs and a tax-saver and an NRE product could reach several hundred, pushed in full on every daily reprice.
+        recommendation: Soft cap of 200 groups per item with a conformance warning; revisit a cell-level delta format only
+          if real catalogs breach it.
+      non-callable-deposits:
+        status: unresolved
+        question: ICICI publishes SEPARATE bulk rates for non-callable deposits (no premature withdrawal), materially higher
+          than the callable card. Since PREMATURE_WITHDRAWAL_ALLOWED sits on PRODUCT_INFORMATION and not on the rate cell,
+          a non-callable deposit is a DIFFERENT ITEM with its own rate card, not a variant of this one.
+        recommendation: Confirm that modelling — one item per callability — and add a CALLABLE / NON_CALLABLE product type
+          if buyer apps need to pair them in the UI.
+      product-eligibility:
+        status: unresolved
+        question: Nothing in the catalog says which INVESTOR_CATEGORY values a product accepts, so a BAP can display a resident
+          FD to an NRI who is then rejected at 832004 / 832006.
+        recommendation: Add an ELIGIBILITY tag group listing permitted categories.
+    source:
+      derived-from:
+      - FD_ONDC_FIS15_Schema.xlsx (API Fields, on_search rows, revision 3)
+      - FD_ONDC_FIS15_API_Spec.md (sections 4.1, 4.2, 5.3, 5.4)
+      - FIS14_search_API.yaml (structure)
+      example-rate-data:
+        product: ICICI Bank domestic fixed deposit, callable
+        slabs:
+        - below Rs 3 crore
+        - Rs 3 crore to under Rs 5 crore
+        buckets: 9 retail + 13 bulk, tiling 7 to 3650 days
+        as-of: '2026-08-05'
+        sourced-fields:
+        - tenure buckets
+        - general rates
+        - senior rates
+        - amount slabs
+        illustrative-fields:
+        - PENALTY_TIER values
+        - PAYOUT_OPTION adjustments
+        - VKYC_TERMS
+        - TDS thresholds (statutory, not issuer-published)
+        sources:
+        - https://www.paisabazaar.com/fixed-deposit/icici-bank-fd-rates/
+        - https://www.bankbazaar.com/fixed-deposit/icici-fixed-deposit-rate.html
+        - https://www.policybazaar.com/fd-interest-rates/icici-bank-fd-rates/
+        note: Rates were cross-checked across three sources. All agreed except the bulk 271-days-to-under-1-year general rate,
+          where two of three gave 5.75% and one gave 5.50%; 5.75% was taken. Reported effective dates differed (7 Apr, 27
+          Jul, 5 Aug 2026) while the rates themselves were identical, so the card appears to have been stable across that
+          period. This is example data for conformance testing, not a live rate feed.
+      beckn-core: 1.3.0

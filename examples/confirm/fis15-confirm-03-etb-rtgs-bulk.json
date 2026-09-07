@@ -1,0 +1,380 @@
+{
+  "context": {
+    "location": {
+      "country": {
+        "code": "IND"
+      },
+      "city": {
+        "code": "*"
+      }
+    },
+    "domain": "ONDC:FIS15",
+    "action": "confirm",
+    "version": "0.2.0",
+    "bap_id": "api.buyerapp.com",
+    "bap_uri": "https://api.buyerapp.com/ondc",
+    "bpp_id": "api.icicibank.com",
+    "bpp_uri": "https://api.icicibank.com/ondc",
+    "transaction_id": "7c1f0a34-2b58-4d91-8e6a-1f0c7d2b4a95",
+    "message_id": "d2846f07-5c19-4b38-a7e6-91f3c0d84a52",
+    "timestamp": "2026-09-02T10:09:00.000Z",
+    "ttl": "PT10M"
+  },
+  "message": {
+    "order": {
+      "provider": {
+        "id": "icici_fd"
+      },
+      "items": [
+        {
+          "id": "icici_fd_regular",
+          "fulfillment_ids": [
+            "ff_dep_01"
+          ],
+          "quantity": {
+            "selected": {
+              "measure": {
+                "value": "35000000",
+                "unit": "INR"
+              }
+            }
+          },
+          "tags": [
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Deposit Information",
+                "code": "DEPOSIT_INFORMATION"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "PRINCIPAL"
+                  },
+                  "value": "35000000"
+                },
+                {
+                  "descriptor": {
+                    "code": "TENURE_DAYS"
+                  },
+                  "value": "550"
+                },
+                {
+                  "descriptor": {
+                    "code": "INTEREST_RATE"
+                  },
+                  "value": "6.80"
+                },
+                {
+                  "descriptor": {
+                    "code": "ANNUALISED_YIELD"
+                  },
+                  "value": "6.80"
+                },
+                {
+                  "descriptor": {
+                    "code": "PAYOUT_FREQUENCY"
+                  },
+                  "value": "QUARTERLY"
+                },
+                {
+                  "descriptor": {
+                    "code": "COMPOUNDING_FREQUENCY"
+                  },
+                  "value": "P0D"
+                },
+                {
+                  "descriptor": {
+                    "code": "MATURITY_INSTRUCTION"
+                  },
+                  "value": "RENEW_PRINCIPAL"
+                },
+                {
+                  "descriptor": {
+                    "code": "MATURITY_AMOUNT"
+                  },
+                  "value": "35000000"
+                },
+                {
+                  "descriptor": {
+                    "code": "TOTAL_INTEREST"
+                  },
+                  "value": "3585972.61"
+                },
+                {
+                  "descriptor": {
+                    "code": "INTEREST_PER_PAYOUT"
+                  },
+                  "value": "593315.07"
+                },
+                {
+                  "descriptor": {
+                    "code": "PAYOUT_COUNT"
+                  },
+                  "value": "6"
+                },
+                {
+                  "descriptor": {
+                    "code": "FINAL_STUB_INTEREST"
+                  },
+                  "value": "26082.19"
+                },
+                {
+                  "descriptor": {
+                    "code": "TDS_ESTIMATED"
+                  },
+                  "value": "358597.26"
+                },
+                {
+                  "descriptor": {
+                    "code": "PROJECTION_BASIS"
+                  },
+                  "value": "PAN on record; TDS at 10% under s.194A deducted from each quarterly payout; interest is paid out and does not compound, so the principal returns whole at maturity; SENIOR_CITIZEN uplift verified from the date of birth on the core banking record"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "fulfillments": [
+        {
+          "id": "ff_dep_01",
+          "type": "DEPOSIT",
+          "customer": {
+            "person": {
+              "id": "pan:rkspm4417c",
+              "creds": [
+                {
+                  "id": "RKSPM4417C",
+                  "type": "PAN"
+                },
+                {
+                  "id": "49.205.12.88",
+                  "type": "IP_ADDRESS"
+                },
+                {
+                  "id": "551907",
+                  "type": "2FA_PHONE_OTP"
+                }
+              ]
+            },
+            "contact": {
+              "phone": "9812345678",
+              "email": "investor@example.com"
+            }
+          },
+          "agent": {
+            "organization": {
+              "creds": [
+                {
+                  "id": "api.buyerapp.com",
+                  "type": "ONDC_SUBSCRIBER_ID"
+                },
+                {
+                  "id": "DIST-99213",
+                  "type": "DISTRIBUTOR_CODE"
+                }
+              ]
+            }
+          },
+          "stops": [
+            {
+              "time": {
+                "label": "TENURE",
+                "duration": "P550D"
+              }
+            }
+          ],
+          "tags": [
+            {
+              "display": false,
+              "descriptor": {
+                "name": "Investor Information",
+                "code": "INVESTOR_INFORMATION"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "INVESTOR_CATEGORY"
+                  },
+                  "value": "INDIVIDUAL"
+                },
+                {
+                  "descriptor": {
+                    "code": "DEPOSITOR_CATEGORY"
+                  },
+                  "value": "SENIOR_CITIZEN"
+                },
+                {
+                  "descriptor": {
+                    "code": "RESIDENCY_STATUS"
+                  },
+                  "value": "RESIDENT"
+                }
+              ]
+            },
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Investor Details",
+                "code": "INVESTOR_DETAILS"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "NAME_AS_PER_PAN"
+                  },
+                  "value": "LAKSHMI NARAYAN IYER"
+                },
+                {
+                  "descriptor": {
+                    "code": "DOB_YEAR"
+                  },
+                  "value": "1958"
+                },
+                {
+                  "descriptor": {
+                    "code": "ADDRESS_CITY"
+                  },
+                  "value": "Chennai"
+                },
+                {
+                  "descriptor": {
+                    "code": "ADDRESS_STATE"
+                  },
+                  "value": "Tamil Nadu"
+                },
+                {
+                  "descriptor": {
+                    "code": "ADDRESS_PINCODE"
+                  },
+                  "value": "600028"
+                },
+                {
+                  "descriptor": {
+                    "code": "EMAIL_MASKED"
+                  },
+                  "value": "l****n@yahoo.co.in"
+                },
+                {
+                  "descriptor": {
+                    "code": "MOBILE_MASKED"
+                  },
+                  "value": "******8877"
+                },
+                {
+                  "descriptor": {
+                    "code": "TAX_RESIDENCY"
+                  },
+                  "value": "RESIDENT_INDIA"
+                }
+              ]
+            },
+            {
+              "display": false,
+              "descriptor": {
+                "name": "Linked Bank Account",
+                "code": "LINKED_BANK_ACCOUNT"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "IDENTIFIER"
+                  },
+                  "value": "ba_7f21c9ae"
+                },
+                {
+                  "descriptor": {
+                    "code": "ACCOUNT_ROLE"
+                  },
+                  "value": "BOTH"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "payments": [
+        {
+          "collected_by": "BPP",
+          "status": "NOT-PAID",
+          "type": "PRE_FULFILLMENT",
+          "params": {
+            "amount": "35000000",
+            "currency": "INR",
+            "bank_code": "ICIC0000001",
+            "bank_account_number": "000110022003"
+          },
+          "tags": [
+            {
+              "display": false,
+              "descriptor": {
+                "name": "Payment Method",
+                "code": "PAYMENT_METHOD"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "MODE"
+                  },
+                  "value": "RTGS"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "quote": {
+        "id": "quote_fd_35cr_550d_680",
+        "price": {
+          "currency": "INR",
+          "value": "35000000"
+        }
+      },
+      "tags": [
+        {
+          "display": false,
+          "descriptor": {
+            "name": "BAP Terms of Engagement",
+            "code": "BAP_TERMS"
+          },
+          "list": [
+            {
+              "descriptor": {
+                "code": "STATIC_TERMS"
+              },
+              "value": "https://buyerapp.com/legal/ondc:fis15/static_terms?v=0.1"
+            },
+            {
+              "descriptor": {
+                "code": "OFFLINE_CONTRACT"
+              },
+              "value": "true"
+            }
+          ]
+        },
+        {
+          "display": false,
+          "descriptor": {
+            "name": "BPP Terms of Engagement",
+            "code": "BPP_TERMS"
+          },
+          "list": [
+            {
+              "descriptor": {
+                "code": "STATIC_TERMS"
+              },
+              "value": "https://www.icicibank.com/legal/ondc:fis15/static_terms?v=0.1"
+            },
+            {
+              "descriptor": {
+                "code": "OFFLINE_CONTRACT"
+              },
+              "value": "true"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

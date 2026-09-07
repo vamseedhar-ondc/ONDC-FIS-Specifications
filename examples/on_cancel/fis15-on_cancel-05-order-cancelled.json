@@ -1,0 +1,192 @@
+{
+  "context": {
+    "location": {
+      "country": {
+        "code": "IND"
+      },
+      "city": {
+        "code": "*"
+      }
+    },
+    "domain": "ONDC:FIS15",
+    "action": "on_cancel",
+    "version": "0.2.0",
+    "bap_id": "api.buyerapp.com",
+    "bap_uri": "https://api.buyerapp.com/ondc",
+    "bpp_id": "api.icicibank.com",
+    "bpp_uri": "https://api.icicibank.com/ondc",
+    "transaction_id": "e9895269-e7a9-4003-9ebc-534413a6017b",
+    "message_id": "9f2d47b1-8c05-4e39-bd72-4a16038e5cf0",
+    "timestamp": "2026-09-02T11:05:31.000Z",
+    "ttl": "PT10M"
+  },
+  "message": {
+    "order": {
+      "id": "FD-ICICI-20260902-004481",
+      "status": "CANCELLED",
+      "provider": {
+        "id": "icici_fd",
+        "descriptor": {
+          "name": "ICICI Bank"
+        }
+      },
+      "fulfillments": [
+        {
+          "id": "ff_dep_01",
+          "type": "DEPOSIT",
+          "state": {
+            "descriptor": {
+              "name": "Cancelled",
+              "code": "CANCELLED"
+            }
+          },
+          "customer": {
+            "person": {
+              "id": "pan:abcpk1234f"
+            }
+          },
+          "stops": [
+            {
+              "time": {
+                "label": "MATURITY_DATE",
+                "timestamp": "2027-10-07T00:00:00.000Z"
+              }
+            }
+          ],
+          "tags": [
+            {
+              "display": false,
+              "descriptor": {
+                "name": "Investor Status",
+                "code": "INVESTOR_STATUS"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "INVESTOR_CATEGORY"
+                  },
+                  "value": "INDIVIDUAL"
+                },
+                {
+                  "descriptor": {
+                    "code": "DEPOSITOR_CATEGORY"
+                  },
+                  "value": "GENERAL"
+                },
+                {
+                  "descriptor": {
+                    "code": "CATEGORY_BASIS"
+                  },
+                  "value": "VERIFIED_KYC"
+                }
+              ]
+            },
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Cancellation Information",
+                "code": "CANCELLATION_INFO"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "CANCELLED_BY"
+                  },
+                  "value": "INVESTOR"
+                },
+                {
+                  "descriptor": {
+                    "code": "REASON_CODE"
+                  },
+                  "value": "PAYMENT_NOT_COMPLETED"
+                },
+                {
+                  "descriptor": {
+                    "code": "REASON_MESSAGE"
+                  },
+                  "value": "Cancelled before payment. No amount was collected, so no refund arises and the ledger is unchanged. The 6.25% rate held for this order is released."
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "payments": [
+        {
+          "id": "pmt_5501",
+          "collected_by": "BPP",
+          "status": "FAILED",
+          "type": "PRE_FULFILLMENT",
+          "params": {
+            "amount": "500000",
+            "currency": "INR"
+          },
+          "tags": [
+            {
+              "display": false,
+              "descriptor": {
+                "name": "Payment Method",
+                "code": "PAYMENT_METHOD"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "MODE"
+                  },
+                  "value": "NETBANKING"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "cancellation_terms": [
+        {
+          "fulfillment_state": {
+            "descriptor": {
+              "code": "PENDING"
+            }
+          },
+          "reason_required": false,
+          "cancellation_fee": {
+            "percentage": "0.00"
+          }
+        },
+        {
+          "fulfillment_state": {
+            "descriptor": {
+              "code": "ACTIVE"
+            }
+          },
+          "reason_required": true,
+          "cancellation_fee": {
+            "percentage": "0.50"
+          }
+        }
+      ],
+      "tags": [
+        {
+          "display": false,
+          "descriptor": {
+            "name": "BPP Terms of Engagement",
+            "code": "BPP_TERMS"
+          },
+          "list": [
+            {
+              "descriptor": {
+                "code": "STATIC_TERMS"
+              },
+              "value": "https://www.icicibank.com/legal/ondc:fis15/static_terms?v=0.1"
+            },
+            {
+              "descriptor": {
+                "code": "OFFLINE_CONTRACT"
+              },
+              "value": "true"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "context": {
+    "location": {
+      "country": {
+        "code": "IND"
+      },
+      "city": {
+        "code": "*"
+      }
+    },
+    "domain": "ONDC:FIS15",
+    "action": "on_select",
+    "version": "0.2.0",
+    "bap_id": "api.buyerapp.com",
+    "bap_uri": "https://api.buyerapp.com/ondc",
+    "bpp_id": "api.icicibank.com",
+    "bpp_uri": "https://api.icicibank.com/ondc",
+    "transaction_id": "e9895269-e7a9-4003-9ebc-534413a6017b",
+    "message_id": "c4b81f07-5e29-4a6d-9f13-2b7ad60c8e51",
+    "timestamp": "2026-09-02T09:16:31.900Z",
+    "ttl": "PT10M"
+  },
+  "error": {
+    "code": "832013",
+    "message": "No rate card cell matches 444 days at Rs 5,00,000 for GENERAL. The cached catalog is stale; run an incremental /search before retrying."
+  }
+}

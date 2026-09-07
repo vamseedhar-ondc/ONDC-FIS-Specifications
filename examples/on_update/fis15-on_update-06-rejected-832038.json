@@ -1,0 +1,27 @@
+{
+  "context": {
+    "location": {
+      "country": {
+        "code": "IND"
+      },
+      "city": {
+        "code": "*"
+      }
+    },
+    "domain": "ONDC:FIS15",
+    "action": "on_update",
+    "version": "0.2.0",
+    "bap_id": "api.buyerapp.com",
+    "bap_uri": "https://api.buyerapp.com/ondc",
+    "bpp_id": "api.icicibank.com",
+    "bpp_uri": "https://api.icicibank.com/ondc",
+    "transaction_id": "e9895269-e7a9-4003-9ebc-534413a6017b",
+    "message_id": "a81f57e3-2c60-4b94-81d7-6e035a9cf142",
+    "timestamp": "2027-09-30T08:17:22.000Z",
+    "ttl": "PT10M"
+  },
+  "error": {
+    "code": "832038",
+    "message": "The maturity instruction cannot be changed within 15 days of the maturity date. Deposit FD-ICICI-20260902-004481 matures on 2027-10-07 and the instruction on file, RENEW_PRINCIPAL_AND_INTEREST, will be carried out. A renewed deposit can be configured afresh once it is booked."
+  }
+}

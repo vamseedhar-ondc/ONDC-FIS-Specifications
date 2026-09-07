@@ -1,0 +1,585 @@
+openapi: 3.0.0
+info:
+  title: ONDC FIS15 — Select API
+  description: >-
+    BAP → BPP deposit configuration. The buyer app sends the plan the investor
+    has assembled — which product, how much, for how long, paid out how, and
+    what happens at maturity — and the issuer prices it.
+
+    /select CARRIES NO IDENTITY. There is no PAN, no creds, no contact and no
+    form chain. It is a pricing question about a product, not a booking, and it
+    is safe to send for a browsing investor who has not signed in. Identity,
+    the ETB/NTB lookup and the entire onboarding chain moved to /init in
+    v0.2.0.
+
+    It follows that /select is REPEATABLE AND CHEAP. Moving the amount slider
+    or changing the tenure is simply another /select, with no invariant to
+    violate and nothing to restart. A buyer app should expect to send several
+    before the investor settles.
+
+    The one investor attribute that travels here is DEPOSITOR_CATEGORY, and it
+    travels as a CLAIM. A senior-citizen rate cannot be quoted without knowing
+    the investor is a senior citizen, but nothing has verified it yet. The
+    issuer verifies it from the date of birth during KYC at /init, and a claim
+    the KYC contradicts invalidates the quote.
+
+    Domain code ONDC:FIS15 and error range 832001-832042 are requested from
+    ONDC and not yet allocated.
+  version: 0.2.0
+
+servers:
+  - url: https://api.icicibank.com/ondc
+    description: BPP (seller app) endpoint
+
+paths:
+  /select:
+    post:
+      summary: Price a configured deposit
+      description: >-
+        Returns an ACK/NACK synchronously; the priced reply arrives on the
+        BAP's /on_select. The issuer resolves the configuration against its
+        rate card — one RATE_CARD_ENTRY cell for the tenure, amount and
+        depositor category, plus any RATE_ADJUSTMENT uplift and the
+        PAYOUT_OPTION adjustment — and returns the rate, the maturity value and
+        the full interest calculation.
+
+        A configuration that resolves to no rate cell is 832013 and means the
+        buyer app's cached catalog is stale. One that breaches AMOUNT_MIN,
+        AMOUNT_MAX, AMOUNT_MULTIPLES or the tenure bounds is 832012 and should
+        have been caught client-side.
+      operationId: select
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SelectRequest'
+            examples:
+              C1_retail_cumulative:
+                summary: 'Retail, cumulative — Rs 5,00,000 for 400 days'
+                description: >-
+                  Credit to bank at maturity, GENERAL category. Resolves to the
+                  ICICI retail slab, 365-546 day bucket, 6.25% p.a.
+                value:
+                  $ref: '../examples/select/fis15-select-01-retail-cumulative.json'
+
+              C2_bulk_senior_quarterly:
+                summary: 'Bulk, senior citizen, quarterly payout — Rs 3.5 crore for 550 days'
+                description: >-
+                  Auto-renew at maturity. Resolves to the bulk slab, 547-730 day
+                  bucket, 6.30% card rate plus the 50 bps senior uplift, less
+                  the quarterly-payout adjustment. Exercises RATE_ADJUSTMENT
+                  amount-slab matching and the PERIODIC projection.
+                value:
+                  $ref: '../examples/select/fis15-select-02-bulk-senior-quarterly.json'
+
+              C3_reprice:
+                summary: 'Re-price — the investor moved the tenure to 444 days'
+                description: >-
+                  Structurally identical to C1 with a different duration. There
+                  is no invariant to violate and nothing to restart; this is the
+                  normal way a buyer app drives a compare-and-slider UX.
+                value:
+                  $ref: '../examples/select/fis15-select-03-reprice.json'
+      responses:
+        default:
+          description: ACK / NACK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ack'
+
+components:
+  schemas:
+
+    SelectRequest:
+      type: object
+      additionalProperties: false
+      required: [context, message]
+      properties:
+        context:
+          allOf:
+            - $ref: '#/components/schemas/Context'
+            - type: object
+              required: [action, bpp_id, bpp_uri]
+              properties:
+                action:
+                  enum: [select]
+        message:
+          type: object
+          additionalProperties: false
+          required: [order]
+          properties:
+            order:
+              $ref: '#/components/schemas/Order'
+
+    Context:
+      type: object
+      additionalProperties: false
+      required:
+        - location
+        - domain
+        - action
+        - version
+        - bap_id
+        - bap_uri
+        - bpp_id
+        - bpp_uri
+        - transaction_id
+        - message_id
+        - timestamp
+        - ttl
+      properties:
+        location:
+          type: object
+          additionalProperties: false
+          required: [country, city]
+          properties:
+            country:
+              type: object
+              properties:
+                code: { type: string, enum: [IND] }
+            city:
+              type: object
+              properties:
+                code: { type: string, enum: ['*'] }
+        domain:  { type: string, enum: [ONDC:FIS15] }
+        action:  { type: string, enum: [select] }
+        version: { type: string, example: 0.2.0 }
+        bap_id:  { type: string }
+        bap_uri: { type: string, format: uri }
+        bpp_id:  { type: string, description: Mandatory from /select onward. }
+        bpp_uri: { type: string, format: uri }
+        transaction_id:
+          type: string
+          format: uuid
+          description: >-
+            A booking journey MINTS A FRESH transaction_id at the first
+            /select. It does not inherit the one used to pull the catalog,
+            because discovery is cached and shared across investors.
+
+            Re-pricing reuses the SAME transaction_id: the investor is still
+            assembling one deposit. The id then threads /init, /confirm and
+            every unsolicited /on_status.
+        message_id: { type: string, format: uuid, description: Fresh per call. }
+        timestamp:  { type: string, format: date-time }
+        ttl:        { type: string, example: PT10M }
+
+    Order:
+      type: object
+      additionalProperties: false
+      required: [provider, items, fulfillments, tags]
+      description: >-
+        A configuration, not a booking. No customer object exists on this call
+        by schema — additionalProperties is false, so an implementation that
+        carries FIS14 habits across and sends a PAN here fails validation
+        rather than leaking it.
+      properties:
+        provider:
+          type: object
+          additionalProperties: false
+          required: [id]
+          properties:
+            id: { type: string, example: icici_fd }
+        ref_order_ids:
+          type: array
+          items: { type: string }
+          description: >-
+            Parent FD order id. Present only on withdrawal and servicing
+            journeys; absent on a new booking.
+        items:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/Item'
+          description: >-
+            Exactly one item. FIS15 does not support multi-item deposit orders —
+            each deposit is its own contract with its own tenure and maturity.
+        fulfillments:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/Fulfillment'
+        tags:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/TagGroup'
+          description: Carries BAP_TERMS. Mandatory on every call.
+
+    Item:
+      type: object
+      additionalProperties: false
+      required: [id, fulfillment_ids, quantity, tags]
+      properties:
+        id:
+          type: string
+          description: Product id from the catalog.
+        fulfillment_ids:
+          type: array
+          minItems: 1
+          items: { type: string }
+        quantity:
+          type: object
+          additionalProperties: false
+          required: [selected]
+          properties:
+            selected:
+              type: object
+              additionalProperties: false
+              required: [measure]
+              properties:
+                measure:
+                  type: object
+                  additionalProperties: false
+                  required: [value, unit]
+                  properties:
+                    value:
+                      type: string
+                      description: >-
+                        Deposit amount. Must satisfy PRODUCT_INFORMATION
+                        AMOUNT_MIN / AMOUNT_MAX / AMOUNT_MULTIPLES and resolve
+                        to exactly one RATE_CARD_ENTRY, or 832012 / 832013.
+                    unit: { type: string, enum: [INR] }
+
+        tags:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/TagGroup'
+          description: >-
+            Carries DEPOSIT_CONFIGURATION, and nothing else. Every input the
+            issuer prices on is in that one group, on the item — in
+            continuation of the catalog's RATE_CARD_ENTRY and PAYOUT_OPTION,
+            which sit on the item too.
+    Fulfillment:
+      type: object
+      additionalProperties: false
+      required: [id, type, agent, stops]
+      description: >-
+        No customer and no tags. agent identifies the BUYER APP, which the
+        issuer needs for empanelment; the investor is identified at /init.
+        Everything the issuer prices on lives on the item — what remains here
+        is the buyer app's identity and the tenure.
+      properties:
+        id:   { type: string, description: Fulfillment id from the catalog. }
+        type: { type: string, enum: [DEPOSIT] }
+        agent:
+          type: object
+          additionalProperties: false
+          required: [organization]
+          properties:
+            organization:
+              type: object
+              additionalProperties: false
+              required: [creds]
+              properties:
+                creds:
+                  type: array
+                  minItems: 1
+                  items:
+                    $ref: '#/components/schemas/Credential'
+        stops:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            type: object
+            additionalProperties: false
+            required: [time]
+            properties:
+              time:
+                type: object
+                additionalProperties: false
+                required: [label, duration]
+                properties:
+                  label: { type: string, enum: [TENURE] }
+                  duration:
+                    type: string
+                    example: P400D
+                    description: >-
+                      Tenure as an ISO 8601 duration. Days are the safe unit —
+                      banks quote odd tenures such as 400 or 444 days.
+
+    Credential:
+      type: object
+      additionalProperties: false
+      required: [id, type]
+      description: >-
+        Buyer-app credentials only. The investor's credentials appear from
+        /init onward.
+      properties:
+        id: { type: string }
+        type:
+          type: string
+          enum: [ONDC_SUBSCRIBER_ID, DISTRIBUTOR_CODE]
+
+    TagGroup:
+      type: object
+      additionalProperties: false
+      required: [descriptor, list]
+      properties:
+        display:    { type: boolean, default: false }
+        descriptor: { $ref: '#/components/schemas/Descriptor' }
+        list:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Tag'
+
+    Tag:
+      type: object
+      additionalProperties: false
+      required: [descriptor, value]
+      properties:
+        descriptor: { $ref: '#/components/schemas/Descriptor' }
+        value:      { type: string }
+        display:    { type: boolean }
+
+    Descriptor:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string }
+        code: { type: string }
+
+    Ack:
+      type: object
+      properties:
+        message:
+          type: object
+          properties:
+            ack:
+              type: object
+              properties:
+                status: { type: string, enum: [ACK, NACK] }
+        error:
+          type: object
+          properties:
+            code:    { type: string }
+            message: { type: string }
+
+  x-ondc-fis15:
+
+    tag-groups:
+
+      DEPOSIT_CONFIGURATION:
+        level: item
+        required: mandatory
+        cardinality: once
+        description: >-
+          EVERY PRICING INPUT, IN ONE GROUP — and a CONFIGURATION, not terms.
+          This group is the buyer app saying what the investor chose;
+          DEPOSIT_INFORMATION is the issuer's statement of the resulting
+          contract and appears only from /on_init onward. The issuer needs four things to
+          resolve a rate — how much, for how long, paid out how, and to whom —
+          and the first two already travel in their beckn slots
+          (items[].quantity for the amount, stops[].time.duration for the
+          tenure). The other two are here.
+
+          The issuer returns the answer on /on_select as a single
+          MATURITY_PROJECTION group on the same item.
+        list:
+          PAYOUT_FREQUENCY:
+            required: mandatory
+            enum: [CUMULATIVE, MONTHLY, QUARTERLY, HALF_YEARLY, ANNUAL]
+            description: >-
+              Must be a PAYOUT_OPTION the catalog offers, or 832015. Carries its
+              own ADJUSTMENT_BPS against the cumulative card rate.
+          MATURITY_INSTRUCTION:
+            required: mandatory
+            enum: [CREDIT_TO_BANK, RENEW_PRINCIPAL, RENEW_PRINCIPAL_AND_INTEREST]
+            description: >-
+              Must be supported by the product, or 832016. Does not affect the
+              rate, but does affect what the maturity projection describes.
+          DEPOSITOR_CATEGORY:
+            required: mandatory
+            enum: [GENERAL, SENIOR_CITIZEN, SUPER_SENIOR_CITIZEN, STAFF, NRE, NRO]
+            description: >-
+              A CLAIM, not a verified fact. Selects the RATE_CARD_ENTRY cell and
+              any RATE_ADJUSTMENT uplift, so the issuer cannot price without it —
+              but nothing on this call has established that the investor is who
+              the buyer app says. Verified from the date of birth during KYC at
+              /init, where it reappears in INVESTOR_INFORMATION as a fact; a
+              claim the KYC contradicts is 832014 and invalidates the quote.
+
+              This is the ONE field in FIS15 that is about the investor and yet
+              sits on the item. It is here because it is a pricing input before
+              it is anything else, and pricing inputs are item-level.
+          RESIDENCY_STATUS:
+            required: optional
+            enum: [RESIDENT, NON_RESIDENT]
+            description: >-
+              Narrows the product set for an NRE or NRO claim. Also a claim,
+              also verified at /init.
+
+      BAP_TERMS:
+        level: order
+        required: mandatory
+        list:
+          STATIC_TERMS:     { required: mandatory, type: uri }
+          OFFLINE_CONTRACT: { required: mandatory, enum: ['true', 'false'] }
+
+    rules:
+      - TAG LEVELS ARE FIXED ACROSS THE JOURNEY. item carries the deposit's
+        economics under exactly two names. DEPOSIT_CONFIGURATION at /select and
+        /init, where the buyer app states what the investor chose.
+        DEPOSIT_INFORMATION from /on_init onward, where the issuer states the
+        resulting contract and /confirm echoes that statement back verbatim.
+        /on_select is the single exception and answers with MATURITY_PROJECTION
+        alone. Both names sit on the item, in continuation of the catalog's
+        RATE_CARD_ENTRY and PAYOUT_OPTION. THE NAME STATES THE AUTHORITY — a
+        CONFIGURATION is asked for, INFORMATION is stated. There is no
+        DEPOSIT_TERMS anywhere in FIS15. fulfillment carries the investor and
+        the servicing. payment carries money movement. order carries only
+        BAP_TERMS and BPP_TERMS, and nothing else, ever.
+      - Dates live in stops, never in a tag. stops[].time carries the tenure
+        before booking and the real VALUE_DATE and MATURITY_DATE after it.
+      - No identity on this call. No PAN, no investor creds, no contact, no
+        xinput. additionalProperties is false throughout, so sending them is a
+        schema failure and not a silent privacy leak.
+      - /select is repeatable within one transaction_id and carries no
+        invariant. Re-pricing is a new /select, not a new transaction. The
+        byte-identical rule begins at /init, once a price has been agreed.
+      - The buyer app should validate amount and tenure against the cached
+        catalog BEFORE sending. Threshold breaches are 832012; a configuration
+        that falls in no rate cell is 832013 and means the cache is stale —
+        run a delta /search before retrying.
+      - DEPOSITOR_CATEGORY is a claim here and a verified fact at /init. Do not
+        present a senior-citizen quote as final until KYC has confirmed the
+        date of birth.
+      - The amount lives in items[].quantity and the tenure in
+        stops[].time.duration. Do NOT restate either inside DEPOSIT_CONFIGURATION — one
+        fact, one place, or the two will disagree.
+      - DEPOSIT_CONFIGURATION is the only tag group on this call apart from
+        BAP_TERMS. The fulfillment carries no tags at all.
+      - CONFIGURATION AND TERMS ARE DIFFERENT GROUPS. DEPOSIT_CONFIGURATION is
+        what the buyer app asks for, at /select and /init. DEPOSIT_INFORMATION
+        is what the issuer states, from /on_init onward, and is echoed back by
+        the buyer app at /confirm. Do not treat them as one group under two
+        names, and note that DEPOSIT_TERMS, the v0.1.0 name, is used by neither.
+      - The quote returned on /on_select is INDICATIVE. It becomes binding on
+        the terminal /on_init, and that is the ttl /confirm must honour.
+      - PAYOUT_FREQUENCY must be a PAYOUT_OPTION the catalog offers (832015)
+        and MATURITY_INSTRUCTION must be supported by the product (832016).
+        Both are catalog facts the buyer app already holds.
+
+    decisions:
+      economics-on-the-item:
+        change: >-
+          The deposit's economics moved from fulfillment level to ITEM level
+          across every call in v0.2.0, and the dates went with the move —
+          VALUE_DATE and MATURITY_DATE are carried by stops and by nothing else.
+          The v0.1.0 group name DEPOSIT_TERMS was retired at the same time, in
+          favour of DEPOSIT_CONFIGURATION when the buyer app asks and
+          DEPOSIT_INFORMATION when the issuer states.
+        why: >-
+          The catalog already puts every piece of deposit economics on the item
+          — PRODUCT_INFORMATION, RATE_CARD_ENTRY, RATE_ADJUSTMENT,
+          PAYOUT_OPTION, TAX_INFORMATION. The group carries the same fields
+          resolved to one rate cell, so having it change level the moment an
+          investor configures a deposit was an inconsistency with nothing
+          behind it. items and fulfillments are both capped at exactly one in
+          every transaction call, so neither level disambiguates anything and
+          the choice is purely about meaning. The dates went because
+          stops[].time already carries them, and on_status already
+          schema-enforces that — two sources for one fact will diverge.
+      identity-removed:
+        change: >-
+          The PAN, the investor creds, the contact and the entire onboarding
+          form chain moved from /select to /init in v0.2.0.
+        why: >-
+          /select was doing two unrelated jobs. An investor could not see what
+          a deposit would actually pay until they had surrendered their PAN,
+          which is both a poor journey and more identity exposure than a
+          pricing question warrants. Separating them lets a buyer app show a
+          complete maturity projection to an anonymous browser.
+      repricing-is-free:
+        change: >-
+          The byte-identical invariant no longer applies to /select. It begins
+          at /init.
+        why: >-
+          In v0.1.0 changing the amount or tenure after round 1 was 832042 and
+          restarted the transaction, because the form chain hung off the same
+          call. With the chain moved, a slider is just another /select — which
+          is what a compare-and-configure UX needs.
+      configuration-not-terms:
+        change: >-
+          The group the buyer app sends is DEPOSIT_CONFIGURATION at both
+          /select and /init. DEPOSIT_INFORMATION is reserved for the issuer's
+          statement of the contract, from /on_init onward.
+        why: >-
+          The same name was doing two jobs in two directions — a request for a
+          price and a binding contract — with different field sets on different
+          calls. Splitting the names makes the direction and the authority
+          obvious from the payload alone.
+      one-group-for-pricing:
+        change: >-
+          INVESTOR_PROFILE was removed and its two fields folded into
+          DEPOSIT_CONFIGURATION on the item. /select now carries exactly two tag
+          groups in total — DEPOSIT_CONFIGURATION on the item and BAP_TERMS on
+          the order — and the fulfillment carries none.
+        why: >-
+          Splitting the pricing inputs across two groups at two levels made an
+          issuer read two places to answer one question. DEPOSITOR_CATEGORY is
+          an investor attribute, but on this call it functions purely as a rate
+          selector, and rate selectors are item-level.
+        cost: >-
+          The field is item-level here and fulfillment-level at /init, inside
+          INVESTOR_INFORMATION. That is the one deliberate exception to the
+          fixed-level rule, and it is deliberate because the two carry
+          different things — a claim used to price, and a verified fact about
+          an identified person. An implementation must not treat them as the
+          same field arriving twice.
+      single-item-orders:
+        change: items is capped at exactly one entry.
+        why: >-
+          FIS14 supports carts because MF units are fungible across schemes. A
+          deposit is a single contract with one tenure, one rate and one
+          maturity date; two deposits are two orders.
+
+    open-points:
+      anonymous-rate-shopping:
+        status: unresolved
+        question: >-
+          With no identity on the call, nothing stops a buyer app pricing
+          thousands of configurations against an issuer to map its whole rate
+          card. The agent creds identify the BAP but not a rate limit.
+        recommendation: >-
+          Leave the schema alone and handle it at network policy — a per-BAP
+          /select rate limit — rather than reintroducing identity to solve an
+          abuse problem.
+      claim-verification-lag:
+        status: unresolved
+        question: >-
+          The gap between a claimed category at /select and its verification at
+          /init is now the whole onboarding chain. An investor can complete KYC
+          before learning the rate they were shown does not apply to them.
+        recommendation: >-
+          Have the issuer verify the category as early in the chain as the KYC
+          stage allows, and surface the mismatch at that round rather than at
+          the terminal one. See the category-mismatch-cost open point in
+          FIS15_init_API.yaml.
+      tenure-as-duration:
+        status: unresolved
+        question: >-
+          Tenure travels as an ISO 8601 duration (P400D). Issuers whose rate
+          cards are expressed in months must convert, and P13M and P400D are
+          not the same number of days.
+        recommendation: >-
+          Keep days as the wire unit and require the catalog to publish
+          TENURE_MIN_DAYS and TENURE_MAX_DAYS, as it already does. Reject month
+          durations at schema level in a later revision.
+
+    source:
+      derived-from:
+        - FD_ONDC_FIS15_API_Spec.md (sections 6, 7)
+        - FD_ONDC_BRD_Final.docx v1.0, Flow > Deposit configuration
+        - FIS15_select_API.yaml v0.1.0 (configuration half; the onboarding half became FIS15_init_API.yaml)
+      reference-implementation:
+        repo: ONDC-FIS-Specifications-release-FIS14-2.1.0
+        files:
+          - api/components/schemas/order.yaml
+      beckn-core: 1.3.0

@@ -1,0 +1,166 @@
+{
+  "context": {
+    "location": {
+      "country": {
+        "code": "IND"
+      },
+      "city": {
+        "code": "*"
+      }
+    },
+    "domain": "ONDC:FIS15",
+    "action": "on_select",
+    "version": "0.2.0",
+    "bap_id": "api.buyerapp.com",
+    "bap_uri": "https://api.buyerapp.com/ondc",
+    "bpp_id": "api.icicibank.com",
+    "bpp_uri": "https://api.icicibank.com/ondc",
+    "transaction_id": "e9895269-e7a9-4003-9ebc-534413a6017b",
+    "message_id": "37e6d220-39b2-4239-88ec-e938f32668a5",
+    "timestamp": "2026-09-02T09:14:02.400Z",
+    "ttl": "PT10M"
+  },
+  "message": {
+    "order": {
+      "provider": {
+        "id": "icici_fd",
+        "descriptor": {
+          "name": "ICICI Bank"
+        }
+      },
+      "items": [
+        {
+          "id": "icici_fd_regular",
+          "descriptor": {
+            "name": "ICICI Bank Fixed Deposit",
+            "code": "DEPOSIT_PRODUCT"
+          },
+          "fulfillment_ids": [
+            "ff_dep_01"
+          ],
+          "quantity": {
+            "selected": {
+              "measure": {
+                "value": "500000",
+                "unit": "INR"
+              }
+            }
+          },
+          "tags": [
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Maturity Projection",
+                "code": "MATURITY_PROJECTION"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "PRINCIPAL"
+                  },
+                  "value": "500000"
+                },
+                {
+                  "descriptor": {
+                    "code": "INTEREST_RATE"
+                  },
+                  "value": "6.25"
+                },
+                {
+                  "descriptor": {
+                    "code": "ANNUALISED_YIELD"
+                  },
+                  "value": "6.40"
+                },
+                {
+                  "descriptor": {
+                    "code": "COMPOUNDING_FREQUENCY"
+                  },
+                  "value": "P3M"
+                },
+                {
+                  "descriptor": {
+                    "code": "TOTAL_INTEREST"
+                  },
+                  "value": "35163.15"
+                },
+                {
+                  "descriptor": {
+                    "code": "MATURITY_AMOUNT"
+                  },
+                  "value": "535163.15"
+                },
+                {
+                  "descriptor": {
+                    "code": "PAYOUT_BASIS"
+                  },
+                  "value": "CUMULATIVE"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "fulfillments": [
+        {
+          "id": "ff_dep_01",
+          "type": "DEPOSIT",
+          "stops": [
+            {
+              "time": {
+                "label": "TENURE",
+                "duration": "P400D"
+              }
+            }
+          ]
+        }
+      ],
+      "quote": {
+        "id": "quote_fd_5l_400d_625",
+        "price": {
+          "currency": "INR",
+          "value": "500000"
+        },
+        "breakup": [
+          {
+            "item": {
+              "id": "icici_fd_regular",
+              "fulfillment_ids": [
+                "ff_dep_01"
+              ]
+            },
+            "title": "PRINCIPAL",
+            "price": {
+              "currency": "INR",
+              "value": "500000"
+            }
+          }
+        ],
+        "ttl": "PT15M"
+      },
+      "tags": [
+        {
+          "display": false,
+          "descriptor": {
+            "name": "Seller App Terms",
+            "code": "BPP_TERMS"
+          },
+          "list": [
+            {
+              "descriptor": {
+                "code": "STATIC_TERMS"
+              },
+              "value": "https://icicibank.com/legal/ondc:fis15/static_terms?v=0.2"
+            },
+            {
+              "descriptor": {
+                "code": "OFFLINE_CONTRACT"
+              },
+              "value": "false"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

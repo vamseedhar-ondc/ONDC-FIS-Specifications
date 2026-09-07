@@ -1,0 +1,109 @@
+{
+  "context": {
+    "location": {
+      "country": {
+        "code": "IND"
+      },
+      "city": {
+        "code": "*"
+      }
+    },
+    "domain": "ONDC:FIS15",
+    "action": "update",
+    "version": "0.2.0",
+    "bap_id": "api.buyerapp.com",
+    "bap_uri": "https://api.buyerapp.com/ondc",
+    "bpp_id": "api.icicibank.com",
+    "bpp_uri": "https://api.icicibank.com/ondc",
+    "transaction_id": "7c1f0a34-2b58-4d91-8e6a-1f0c7d2b4a95",
+    "message_id": "1f76b3ca-58e0-49d7-8b24-c0e9a5371f4a",
+    "timestamp": "2027-04-20T05:14:27.000Z",
+    "ttl": "PT10M"
+  },
+  "message": {
+    "update_target": "order.documents",
+    "order": {
+      "id": "FD-ICICI-20260902-004523",
+      "provider": {
+        "id": "icici_fd"
+      },
+      "fulfillments": [
+        {
+          "id": "ff_dep_01",
+          "type": "DEPOSIT",
+          "customer": {
+            "person": {
+              "id": "pan:rkspm4417c"
+            }
+          },
+          "agent": {
+            "organization": {
+              "creds": [
+                {
+                  "id": "api.buyerapp.com",
+                  "type": "ONDC_SUBSCRIBER_ID"
+                },
+                {
+                  "id": "DIST-99213",
+                  "type": "DISTRIBUTOR_CODE"
+                }
+              ]
+            }
+          },
+          "tags": [
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Document Request",
+                "code": "DOCUMENT_REQUEST"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "DOCUMENT_CODE"
+                  },
+                  "value": "INTEREST_CERTIFICATE"
+                },
+                {
+                  "descriptor": {
+                    "code": "FINANCIAL_YEAR"
+                  },
+                  "value": "2026-27"
+                },
+                {
+                  "descriptor": {
+                    "code": "FORMAT"
+                  },
+                  "value": "PDF"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "tags": [
+        {
+          "display": false,
+          "descriptor": {
+            "name": "BAP Terms of Engagement",
+            "code": "BAP_TERMS"
+          },
+          "list": [
+            {
+              "descriptor": {
+                "code": "STATIC_TERMS"
+              },
+              "value": "https://buyerapp.com/legal/ondc:fis15/static_terms?v=0.1"
+            },
+            {
+              "descriptor": {
+                "code": "OFFLINE_CONTRACT"
+              },
+              "value": "true"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

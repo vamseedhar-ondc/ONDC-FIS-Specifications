@@ -1,0 +1,87 @@
+{
+    "context": {
+        "location": {
+            "country": {
+                "code": "IND"
+            },
+            "city": {
+                "code": "*"
+            }
+        },
+        "domain": "ONDC:FIS15",
+        "action": "search",
+        "version": "0.2.0",
+        "bap_id": "api.buyerapp.com",
+        "bap_uri": "https://api.buyerapp.com/ondc",
+        "transaction_id": "df841165-1592-462b-bcf0-284cb9232938",
+        "message_id": "0b66cbd4-592d-4f90-930e-199bd7fed60f",
+        "timestamp": "2026-09-02T06:12:00.000Z",
+        "ttl": "PT10M"
+    },
+    "message": {
+        "intent": {
+            "category": {
+                "descriptor": {
+                    "code": "FIXED_DEPOSIT"
+                }
+            },
+            "fulfillment": {
+                "agent": {
+                    "organization": {
+                        "creds": [
+                            {
+                                "id": "api.buyerapp.com",
+                                "type": "ONDC_SUBSCRIBER_ID"
+                            },
+                            {
+                                "id": "DIST-99213",
+                                "type": "DISTRIBUTOR_CODE"
+                            }
+                        ]
+                    }
+                }
+            },
+            "tags": [
+                {
+                    "display": false,
+                    "descriptor": {
+                        "name": "Incremental Pull",
+                        "code": "INCREMENTAL_PULL"
+                    },
+                    "list": [
+                        {
+                            "descriptor": {
+                                "name": "Register",
+                                "code": "REGISTER"
+                            },
+                            "value": "true"
+                        }
+                    ]
+                },
+                {
+                    "display": false,
+                    "descriptor": {
+                        "name": "BAP Terms of Engagement",
+                        "code": "BAP_TERMS"
+                    },
+                    "list": [
+                        {
+                            "descriptor": {
+                                "name": "Static Terms (Transaction Level)",
+                                "code": "STATIC_TERMS"
+                            },
+                            "value": "https://buyerapp.com/legal/ondc:fis15/static_terms?v=0.1"
+                        },
+                        {
+                            "descriptor": {
+                                "name": "Offline Contract",
+                                "code": "OFFLINE_CONTRACT"
+                            },
+                            "value": "true"
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+}

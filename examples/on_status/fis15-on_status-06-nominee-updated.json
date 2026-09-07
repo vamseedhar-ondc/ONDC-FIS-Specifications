@@ -1,0 +1,542 @@
+{
+  "context": {
+    "location": {
+      "country": {
+        "code": "IND"
+      },
+      "city": {
+        "code": "*"
+      }
+    },
+    "domain": "ONDC:FIS15",
+    "action": "on_status",
+    "version": "0.2.0",
+    "bap_id": "api.buyerapp.com",
+    "bap_uri": "https://api.buyerapp.com/ondc",
+    "bpp_id": "api.icicibank.com",
+    "bpp_uri": "https://api.icicibank.com/ondc",
+    "transaction_id": "e9895269-e7a9-4003-9ebc-534413a6017b",
+    "message_id": "6ae2f019-84c7-4d35-b71e-9c704f83a2b6",
+    "timestamp": "2027-01-15T06:44:52.000Z",
+    "ttl": "PT10M"
+  },
+  "message": {
+    "order": {
+      "id": "FD-ICICI-20260902-004481",
+      "status": "ACTIVE",
+      "provider": {
+        "id": "icici_fd",
+        "descriptor": {
+          "name": "ICICI Bank"
+        }
+      },
+      "items": [
+        {
+          "id": "icici_fd_regular",
+          "descriptor": {
+            "name": "ICICI Bank Fixed Deposit",
+            "code": "DEPOSIT_PRODUCT"
+          },
+          "fulfillment_ids": [
+            "ff_dep_01"
+          ],
+          "quantity": {
+            "selected": {
+              "measure": {
+                "value": "500000",
+                "unit": "INR"
+              }
+            }
+          },
+          "tags": [
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Deposit Information",
+                "code": "DEPOSIT_INFORMATION"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "PRINCIPAL"
+                  },
+                  "value": "500000"
+                },
+                {
+                  "descriptor": {
+                    "code": "TENURE_DAYS"
+                  },
+                  "value": "400"
+                },
+                {
+                  "descriptor": {
+                    "code": "INTEREST_RATE"
+                  },
+                  "value": "6.25"
+                },
+                {
+                  "descriptor": {
+                    "code": "ANNUALISED_YIELD"
+                  },
+                  "value": "6.40"
+                },
+                {
+                  "descriptor": {
+                    "code": "PAYOUT_FREQUENCY"
+                  },
+                  "value": "CUMULATIVE"
+                },
+                {
+                  "descriptor": {
+                    "code": "COMPOUNDING_FREQUENCY"
+                  },
+                  "value": "P3M"
+                },
+                {
+                  "descriptor": {
+                    "code": "MATURITY_INSTRUCTION"
+                  },
+                  "value": "CREDIT_TO_BANK"
+                },
+                {
+                  "descriptor": {
+                    "code": "MATURITY_AMOUNT"
+                  },
+                  "value": "535163.15"
+                },
+                {
+                  "descriptor": {
+                    "code": "TOTAL_INTEREST"
+                  },
+                  "value": "35163.15"
+                },
+                {
+                  "descriptor": {
+                    "code": "TDS_ESTIMATED"
+                  },
+                  "value": "0.00"
+                },
+                {
+                  "descriptor": {
+                    "code": "NET_MATURITY_AMOUNT"
+                  },
+                  "value": "535163.15"
+                },
+                {
+                  "descriptor": {
+                    "code": "PROJECTION_BASIS"
+                  },
+                  "value": "First-year accrual of 31990.08 is below the s.194A threshold of 50000."
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "fulfillments": [
+        {
+          "id": "ff_dep_01",
+          "type": "DEPOSIT",
+          "state": {
+            "descriptor": {
+              "code": "ACTIVE"
+            }
+          },
+          "customer": {
+            "person": {
+              "id": "pan:abcpk1234f"
+            }
+          },
+          "stops": [
+            {
+              "time": {
+                "label": "VALUE_DATE",
+                "timestamp": "2026-09-02T00:00:00.000Z"
+              }
+            },
+            {
+              "time": {
+                "label": "MATURITY_DATE",
+                "timestamp": "2027-10-07T00:00:00.000Z"
+              }
+            }
+          ],
+          "tags": [
+            {
+              "display": false,
+              "descriptor": {
+                "name": "Investor Status",
+                "code": "INVESTOR_STATUS"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "INVESTOR_CATEGORY"
+                  },
+                  "value": "INDIVIDUAL"
+                },
+                {
+                  "descriptor": {
+                    "code": "DEPOSITOR_CATEGORY"
+                  },
+                  "value": "GENERAL"
+                },
+                {
+                  "descriptor": {
+                    "code": "CATEGORY_BASIS"
+                  },
+                  "value": "VERIFIED_KYC"
+                }
+              ]
+            },
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Linked Bank Account",
+                "code": "LINKED_BANK_ACCOUNT"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "IDENTIFIER"
+                  },
+                  "value": "ba_7f21c9ae"
+                },
+                {
+                  "descriptor": {
+                    "code": "MASKED_ACCOUNT_NUMBER"
+                  },
+                  "value": "XXXX XXXX 9878"
+                },
+                {
+                  "descriptor": {
+                    "code": "ACCOUNT_HOLDER_NAME"
+                  },
+                  "value": "Ananya R Krishnan"
+                },
+                {
+                  "descriptor": {
+                    "code": "ACCOUNT_TYPE"
+                  },
+                  "value": "SAVINGS"
+                },
+                {
+                  "descriptor": {
+                    "code": "BANK_NAME"
+                  },
+                  "value": "ICICI Bank Ltd"
+                },
+                {
+                  "descriptor": {
+                    "code": "IFSC"
+                  },
+                  "value": "ICIC0000047"
+                },
+                {
+                  "descriptor": {
+                    "code": "VERIFICATION_METHOD"
+                  },
+                  "value": "UPI_PENNY_DROP"
+                },
+                {
+                  "descriptor": {
+                    "code": "VERIFICATION_STATUS"
+                  },
+                  "value": "SUCCESSFUL"
+                },
+                {
+                  "descriptor": {
+                    "code": "ACCOUNT_ROLE"
+                  },
+                  "value": "BOTH"
+                }
+              ]
+            },
+            {
+              "display": true,
+              "descriptor": {
+                "name": "External References",
+                "code": "EXTERNAL_REFS"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "FD_RECEIPT_NUMBER"
+                  },
+                  "value": "ICICI/FD/2026/004481"
+                },
+                {
+                  "descriptor": {
+                    "code": "DEPOSIT_ACCOUNT_NUMBER"
+                  },
+                  "value": "000110099481"
+                },
+                {
+                  "descriptor": {
+                    "code": "CBS_REFERENCE"
+                  },
+                  "value": "CBS-TD-88123901"
+                }
+              ]
+            },
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Nominee Information",
+                "code": "NOMINEE_INFORMATION"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "NOMINATION_OPTED"
+                  },
+                  "value": "true"
+                },
+                {
+                  "descriptor": {
+                    "code": "NOMINEE_COUNT"
+                  },
+                  "value": "2"
+                },
+                {
+                  "descriptor": {
+                    "code": "NOMINEE_NAME_MASKED"
+                  },
+                  "value": "R**** K*******"
+                },
+                {
+                  "descriptor": {
+                    "code": "NOMINEE_RELATIONSHIP"
+                  },
+                  "value": "SPOUSE"
+                },
+                {
+                  "descriptor": {
+                    "code": "ALLOCATION_PERCENTAGE"
+                  },
+                  "value": "60"
+                }
+              ]
+            },
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Onboarding Status",
+                "code": "ONBOARDING_STATUS"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "STAGE"
+                  },
+                  "value": "KYC"
+                },
+                {
+                  "descriptor": {
+                    "code": "MODE"
+                  },
+                  "value": "AADHAAR_EKYC"
+                },
+                {
+                  "descriptor": {
+                    "code": "STATUS"
+                  },
+                  "value": "SUCCESSFUL"
+                },
+                {
+                  "descriptor": {
+                    "code": "UPDATED_AT"
+                  },
+                  "value": "2026-09-02T09:20:41.000Z"
+                }
+              ]
+            },
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Onboarding Status",
+                "code": "ONBOARDING_STATUS"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "STAGE"
+                  },
+                  "value": "VKYC"
+                },
+                {
+                  "descriptor": {
+                    "code": "MODE"
+                  },
+                  "value": "VIDEO_LIVENESS"
+                },
+                {
+                  "descriptor": {
+                    "code": "STATUS"
+                  },
+                  "value": "SUCCESSFUL"
+                },
+                {
+                  "descriptor": {
+                    "code": "UPDATED_AT"
+                  },
+                  "value": "2026-09-02T12:04:18.000Z"
+                }
+              ]
+            },
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Nominee Information",
+                "code": "NOMINEE_INFORMATION"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "NOMINATION_OPTED"
+                  },
+                  "value": "true"
+                },
+                {
+                  "descriptor": {
+                    "code": "NOMINEE_COUNT"
+                  },
+                  "value": "2"
+                },
+                {
+                  "descriptor": {
+                    "code": "NOMINEE_NAME_MASKED"
+                  },
+                  "value": "A**** K*******"
+                },
+                {
+                  "descriptor": {
+                    "code": "NOMINEE_RELATIONSHIP"
+                  },
+                  "value": "CHILD"
+                },
+                {
+                  "descriptor": {
+                    "code": "ALLOCATION_PERCENTAGE"
+                  },
+                  "value": "40"
+                }
+              ]
+            },
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Servicing Status",
+                "code": "SERVICING_STATUS"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "ACTION"
+                  },
+                  "value": "NOMINEE_UPDATE"
+                },
+                {
+                  "descriptor": {
+                    "code": "STATUS"
+                  },
+                  "value": "SUCCESSFUL"
+                },
+                {
+                  "descriptor": {
+                    "code": "REQUESTED_AT"
+                  },
+                  "value": "2027-01-15T06:31:08.000Z"
+                },
+                {
+                  "descriptor": {
+                    "code": "UPDATED_AT"
+                  },
+                  "value": "2027-01-15T06:44:52.000Z"
+                },
+                {
+                  "descriptor": {
+                    "code": "REFERENCE"
+                  },
+                  "value": "SRV-004481-0002"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "payments": [
+        {
+          "id": "pmt_5501",
+          "collected_by": "BPP",
+          "status": "PAID",
+          "type": "PRE_FULFILLMENT",
+          "params": {
+            "amount": "500000",
+            "currency": "INR",
+            "transaction_id": "ICICINB2026090212345678"
+          },
+          "tags": [
+            {
+              "display": false,
+              "descriptor": {
+                "name": "Payment Method",
+                "code": "PAYMENT_METHOD"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "MODE"
+                  },
+                  "value": "NETBANKING"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "tags": [
+        {
+          "display": false,
+          "descriptor": {
+            "name": "BPP Terms of Engagement",
+            "code": "BPP_TERMS"
+          },
+          "list": [
+            {
+              "descriptor": {
+                "code": "STATIC_TERMS"
+              },
+              "value": "https://www.icicibank.com/legal/ondc:fis15/static_terms?v=0.1"
+            },
+            {
+              "descriptor": {
+                "code": "OFFLINE_CONTRACT"
+              },
+              "value": "true"
+            }
+          ]
+        }
+      ],
+      "documents": [
+        {
+          "descriptor": {
+            "name": "Fixed Deposit Receipt",
+            "code": "FD_RECEIPT"
+          },
+          "mime_type": "application/pdf",
+          "url": "https://docs.icicibank.com/fd/receipt/004481.pdf"
+        }
+      ],
+      "xinput": {
+        "form": {
+          "id": "form_nominee_chg_88214"
+        },
+        "form_response": {
+          "status": "SUCCESS",
+          "submission_id": "sub_nom_4471902"
+        }
+      }
+    }
+  }
+}

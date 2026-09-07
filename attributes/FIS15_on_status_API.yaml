@@ -1,0 +1,1249 @@
+openapi: 3.0.0
+info:
+  title: ONDC FIS15 — On Status API
+  description: >-
+    BPP → BAP order state. The only call that spans the ENTIRE lifecycle, from
+    a form receipt during onboarding to a maturity payout years later, and the
+    workhorse of the protocol: most of what a buyer app learns after /confirm
+    arrives here, unasked.
+
+    SOLICITED AND UNSOLICITED ARE THE SAME PAYLOAD. A reply to /status and a
+    push nobody requested are indistinguishable, deliberately — a buyer app
+    needs one handler, not two. Do not branch on whether a request preceded it.
+
+    order.id IS CONDITIONAL, which surprises people. During the /init chain
+    no order exists yet, so a form-outcome push carries an order WITHOUT an id
+    and is correlated by transaction_id alone. From /on_confirm onward the id
+    is mandatory. The schema enforces this.
+
+    THE PAYMENT LEDGER IS APPEND-ONLY. A refund does not mutate the original
+    payment to some refunded state; it adds a second payment object of type
+    REFUND. The original stays PAID, because it was. This keeps the ledger
+    reconcilable and needs no extension to the core payment status enum.
+
+    Domain code ONDC:FIS15 and error range 832001-832042 are requested from
+    ONDC and not yet allocated.
+  version: 0.2.0
+
+servers:
+  - url: https://api.buyerapp.com/ondc
+    description: BAP (buyer app) callback endpoint
+
+paths:
+  /on_status:
+    post:
+      summary: Report the current state of an order
+      description: >-
+        Returns an ACK/NACK synchronously. Sent in reply to /status, and
+        unsolicited whenever a form completes, a payment resolves, the deposit
+        is booked, an instalment is paid, or the order terminates.
+      operationId: onStatus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnStatusRequest'
+            examples:
+              T1_form_submitted:
+                summary: 'Mid-chain push — no order.id yet'
+                description: >-
+                  The investor finished the Aadhaar KYC redirect. Correlated by
+                  transaction_id alone, because /on_confirm has not run. This is
+                  the authoritative outcome; the browser callback is not.
+                value:
+                  $ref: '../examples/on_status/fis15-on_status-01-form-submitted.json'
+
+              T2_paid_vkyc_pending:
+                summary: 'Paid, VKYC pending — the refund window opens'
+                description: >-
+                  Payment PAID, fulfillment INITIATED, VKYC form issued and
+                  VKYC_DEADLINE set. The investor has paid into a deposit that
+                  does not exist yet.
+                value:
+                  $ref: '../examples/on_status/fis15-on_status-02-paid-vkyc-pending.json'
+
+              T3_deposit_active:
+                summary: 'Booked — receipt, refs and real dates'
+                description: >-
+                  The deposit exists. EXTERNAL_REFS carries the FD number,
+                  documents[] the receipt, and VALUE_DATE and MATURITY_DATE
+                  appear for the first time.
+                value:
+                  $ref: '../examples/on_status/fis15-on_status-03-deposit-active.json'
+
+              T4_vkyc_failed_refund:
+                summary: 'SLA breached — cancelled and refunded'
+                description: >-
+                  Note the payments array: the original PRE_FULFILLMENT entry
+                  stays PAID and a second REFUND entry is appended.
+                value:
+                  $ref: '../examples/on_status/fis15-on_status-04-vkyc-failed-refund.json'
+
+              T6_nominee_updated:
+                summary: 'Servicing resolved — the nominee form came back'
+                description: >-
+                  The other half of the /update journey. The form issued at
+                  /on_update was submitted, so SERVICING_STATUS flips to
+                  SUCCESSFUL carrying the SAME REFERENCE the issuer minted
+                  there, and NOMINEE_INFORMATION now repeats — two nominees at
+                  60/40 where there was one. Four months after booking, on the
+                  transaction_id minted at the opening /select.
+                value:
+                  $ref: '../examples/on_status/fis15-on_status-06-nominee-updated.json'
+
+              T5_payment_failed:
+                summary: 'Payment failed — the order survives'
+                description: >-
+                  Payment FAILED but the order is still ACCEPTED and the
+                  fulfillment still PENDING. The buyer app requests a fresh link
+                  via /update on order.payments; it does not restart the journey.
+                value:
+                  $ref: '../examples/on_status/fis15-on_status-05-payment-failed.json'
+      responses:
+        default:
+          description: ACK / NACK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ack'
+
+components:
+  schemas:
+
+    OnStatusRequest:
+      type: object
+      additionalProperties: false
+      required: [context]
+      oneOf:
+        - required: [message]
+          not: { required: [error] }
+        - required: [error]
+          not: { required: [message] }
+      properties:
+        context:
+          allOf:
+            - $ref: '#/components/schemas/Context'
+            - type: object
+              required: [action, bpp_id, bpp_uri]
+              properties:
+                action:
+                  enum: [on_status]
+        message:
+          type: object
+          additionalProperties: false
+          required: [order]
+          properties:
+            order:
+              $ref: '#/components/schemas/Order'
+        error:
+          $ref: '#/components/schemas/Error'
+
+    Context:
+      type: object
+      additionalProperties: false
+      required:
+        - location
+        - domain
+        - action
+        - version
+        - bap_id
+        - bap_uri
+        - bpp_id
+        - bpp_uri
+        - transaction_id
+        - message_id
+        - timestamp
+        - ttl
+      properties:
+        location:
+          type: object
+          additionalProperties: false
+          required: [country, city]
+          properties:
+            country:
+              type: object
+              properties:
+                code: { type: string, enum: [IND] }
+            city:
+              type: object
+              properties:
+                code: { type: string, enum: ['*'] }
+        domain:  { type: string, enum: [ONDC:FIS15] }
+        action:  { type: string, enum: [on_status] }
+        version: { type: string, example: 0.2.0 }
+        bap_id:  { type: string }
+        bap_uri: { type: string, format: uri }
+        bpp_id:  { type: string }
+        bpp_uri: { type: string, format: uri }
+        transaction_id:
+          type: string
+          format: uuid
+          description: >-
+            The correlation key, and the ONLY one available on a mid-chain push
+            where no order id exists. A buyer app must be able to resolve a
+            transaction_id to an in-flight journey for the whole life of the
+            deposit.
+        message_id:
+          type: string
+          format: uuid
+          description: >-
+            Echoes the /status message_id when solicited; freshly minted when
+            the push is unsolicited. Do not rely on it to tell the two apart —
+            treat every on_status the same way.
+        timestamp: { type: string, format: date-time }
+        ttl:       { type: string, example: PT10M }
+
+    Order:
+      type: object
+      additionalProperties: false
+      required: [status, provider, items, fulfillments, payments, tags]
+      description: >-
+        id is conditional. The if/then below requires it for every status
+        except CREATED, which is the only state an order can be in before
+        /on_confirm mints one.
+      if:
+        required: [status]
+        properties:
+          status:
+            not: { const: CREATED }
+      then:
+        required: [id]
+      properties:
+        id:
+          type: string
+          example: FD-ICICI-20260902-004481
+          description: Absent only on a pre-/on_confirm push.
+        status:
+          type: string
+          enum: [CREATED, ACCEPTED, ACTIVE, COMPLETED, CANCELLED]
+          description: >-
+            CREATED   draft, pre-confirm.
+            ACCEPTED  confirmed; awaiting payment, VKYC or booking.
+            ACTIVE    the deposit exists and is earning.
+            COMPLETED matured and paid out, or closed and settled.
+            CANCELLED terminated before or after booking; funds refunded if collected.
+        provider:
+          type: object
+          additionalProperties: false
+          required: [id]
+          properties:
+            id:         { type: string }
+            descriptor: { $ref: '#/components/schemas/Descriptor' }
+        ref_order_ids:
+          type: array
+          items: { type: string }
+          description: >-
+            Present on child orders — an interest payout, a maturity payout, a
+            renewal — pointing at the parent deposit.
+        items:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/Item'
+        fulfillments:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/Fulfillment'
+        payments:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Payment'
+          description: >-
+            APPEND-ONLY. Entries are added, never rewritten. A refund appears as
+            a second object of type REFUND alongside the original, which keeps
+            its PAID status.
+        quote:
+          $ref: '#/components/schemas/Quote'
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/Document'
+          description: >-
+            Appears once the deposit is booked, carrying the FD receipt. Grows
+            over the deposit's life with interest certificates and Form 16A.
+        cancellation_terms:
+          type: array
+          items:
+            $ref: '#/components/schemas/CancellationTerm'
+        refund_terms:
+          type: array
+          items:
+            $ref: '#/components/schemas/RefundTerm'
+        xinput:
+          $ref: '#/components/schemas/XInput'
+        tags:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/TagGroup'
+
+    Item:
+      type: object
+      additionalProperties: false
+      required: [id, descriptor, fulfillment_ids, quantity, tags]
+      properties:
+        id: { type: string }
+        descriptor:
+          type: object
+          required: [name, code]
+          properties:
+            name: { type: string }
+            code: { type: string, enum: [DEPOSIT_PRODUCT, SERVICE] }
+        fulfillment_ids:
+          type: array
+          minItems: 1
+          items: { type: string }
+        quantity:
+          type: object
+          additionalProperties: false
+          required: [selected]
+          properties:
+            selected:
+              type: object
+              additionalProperties: false
+              required: [measure]
+              properties:
+                measure:
+                  type: object
+                  additionalProperties: false
+                  required: [value, unit]
+                  properties:
+                    value: { type: string }
+                    unit:  { type: string, enum: [INR] }
+        tags:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/TagGroup'
+
+    Fulfillment:
+      type: object
+      additionalProperties: false
+      required: [id, type, state, customer, stops, tags]
+      description: >-
+        Once the state is ACTIVE the deposit exists, so the stops must carry the
+        real VALUE_DATE and MATURITY_DATE rather than the indicative tenure.
+        Enforced by the if/then below.
+      if:
+        required: [state]
+        properties:
+          state:
+            required: [descriptor]
+            properties:
+              descriptor:
+                required: [code]
+                properties:
+                  code: { const: ACTIVE }
+      then:
+        properties:
+          stops:
+            allOf:
+              - contains:
+                  type: object
+                  required: [time]
+                  properties:
+                    time:
+                      type: object
+                      required: [label]
+                      properties:
+                        label: { const: VALUE_DATE }
+              - contains:
+                  type: object
+                  required: [time]
+                  properties:
+                    time:
+                      type: object
+                      required: [label]
+                      properties:
+                        label: { const: MATURITY_DATE }
+      properties:
+        id: { type: string }
+        type:
+          type: string
+          enum:
+            - DEPOSIT
+            - INTEREST_PAYOUT
+            - MATURITY_PAYOUT
+            - AUTO_RENEWAL
+            - KYC
+          description: >-
+            Every value here is a thing being DELIVERED. DEPOSIT is the deposit
+            itself; the payouts, the renewal and the withdrawals are money events
+            that arrive as CHILD orders carrying ref_order_ids; KYC is the
+            onboarding fulfillment /init and /on_init use.
+
+            NOMINEE_UPDATE, MATURITY_INSTRUCTION_UPDATE and DOCUMENT_REQUEST were
+            RETIRED in this revision — see decisions.servicing-types-retired.
+        state:
+          type: object
+          additionalProperties: false
+          required: [descriptor]
+          properties:
+            descriptor:
+              type: object
+              additionalProperties: false
+              required: [code]
+              properties:
+                name: { type: string }
+                code:
+                  type: string
+                  enum: [PENDING, INITIATED, ACTIVE, MATURED, CLOSED_PREMATURE, FAILED, CANCELLED, SUCCESSFUL]
+        customer:
+          type: object
+          additionalProperties: false
+          required: [person]
+          properties:
+            person:
+              type: object
+              additionalProperties: false
+              required: [id]
+              properties:
+                id: { type: string }
+        stops:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            additionalProperties: false
+            required: [time]
+            properties:
+              time:
+                type: object
+                additionalProperties: false
+                properties:
+                  label:
+                    type: string
+                    enum: [TENURE, VALUE_DATE, MATURITY_DATE, PAYOUT_SCHEDULE, SCHEDULED_ON]
+                  duration:  { type: string }
+                  timestamp: { type: string, format: date-time }
+                  schedule:
+                    type: object
+                    additionalProperties: false
+                    properties:
+                      frequency:
+                        type: string
+                        example: R13/2026-10-01/P1M
+                        description: >-
+                          ISO 8601 repeating interval for interest payouts.
+                          Non-cumulative deposits only.
+        tags:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/TagGroup'
+
+    Payment:
+      type: object
+      additionalProperties: false
+      required: [id, collected_by, status, type, params]
+      properties:
+        id: { type: string }
+        collected_by: { type: string, enum: [BPP] }
+        status:
+          type: string
+          enum: [NOT-PAID, PAID, FAILED, DEFERRED]
+          description: >-
+            NOT-PAID doubles as pending-or-unknown; a terminal NOT-PAID means
+            wait for a further push, not that the payment failed.
+            DEFERRED marks a scheduled future payout not yet due, and appears
+            only on ON_FULFILLMENT entries in interest-payout child orders.
+        type:
+          type: string
+          enum: [PRE_FULFILLMENT, ON_FULFILLMENT, REFUND]
+        url:
+          type: string
+          format: uri
+          description: Present only while a redirect payment is outstanding.
+        params:
+          type: object
+          additionalProperties: false
+          required: [amount, currency]
+          properties:
+            amount:   { type: string }
+            currency: { type: string, enum: [INR] }
+            transaction_id:
+              type: string
+              description: >-
+                The bank or PG reference. Present once status is PAID, and the
+                handle for any reconciliation dispute.
+            url:                            { type: string }
+            bank_code:                      { type: string }
+            bank_account_number:            { type: string }
+            source_bank_code:               { type: string }
+            source_bank_account_number:     { type: string }
+            source_virtual_payment_address: { type: string }
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/TagGroup'
+
+    Quote:
+      type: object
+      additionalProperties: false
+      required: [id, price]
+      properties:
+        id:    { type: string }
+        price: { $ref: '#/components/schemas/Price' }
+        breakup:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [title, price]
+            properties:
+              item:
+                type: object
+                additionalProperties: false
+                properties:
+                  id:              { type: string }
+                  fulfillment_ids: { type: array, items: { type: string } }
+              title:
+                type: string
+                enum: [PRINCIPAL, INTEREST_ACCRUED, PREMATURE_WITHDRAWAL_PENALTY, TDS, NET_PAYOUT]
+              price: { $ref: '#/components/schemas/Price' }
+        ttl: { type: string }
+
+    Document:
+      type: object
+      additionalProperties: false
+      required: [descriptor, mime_type, url]
+      properties:
+        descriptor:
+          type: object
+          additionalProperties: false
+          required: [name, code]
+          properties:
+            name: { type: string }
+            code:
+              type: string
+              enum: [FD_RECEIPT, INTEREST_CERTIFICATE, FORM_16A, TDS_CERTIFICATE, PRODUCT_TNC]
+        mime_type: { type: string, enum: [application/pdf, text/html, application/html, application/xml] }
+        url:       { type: string, format: uri }
+
+    Price:
+      type: object
+      additionalProperties: false
+      required: [currency, value]
+      properties:
+        currency: { type: string, enum: [INR] }
+        value:    { type: string }
+
+    CancellationTerm:
+      type: object
+      additionalProperties: false
+      required: [fulfillment_state]
+      properties:
+        fulfillment_state: { $ref: '#/components/schemas/StateRef' }
+        reason_required:   { type: boolean }
+        cancellation_fee:
+          type: object
+          additionalProperties: false
+          properties:
+            percentage: { type: string }
+            amount:     { $ref: '#/components/schemas/Price' }
+
+    RefundTerm:
+      type: object
+      additionalProperties: false
+      required: [fulfillment_state, refund_eligible]
+      properties:
+        fulfillment_state: { $ref: '#/components/schemas/StateRef' }
+        refund_eligible:   { type: boolean }
+        refund_within:
+          type: object
+          additionalProperties: false
+          properties:
+            duration: { type: string }
+        refund_amount: { $ref: '#/components/schemas/Price' }
+
+    StateRef:
+      type: object
+      additionalProperties: false
+      required: [descriptor]
+      properties:
+        descriptor:
+          type: object
+          additionalProperties: false
+          required: [code]
+          properties:
+            name: { type: string }
+            code:
+              type: string
+              enum: [PENDING, INITIATED, ACTIVE, MATURED, CLOSED_PREMATURE, FAILED, CANCELLED]
+
+    XInput:
+      type: object
+      additionalProperties: false
+      properties:
+        required: { type: boolean }
+        head:
+          type: object
+          additionalProperties: false
+          required: [index, headings]
+          properties:
+            index:
+              type: object
+              additionalProperties: false
+              required: [min, cur, max]
+              properties:
+                min: { type: integer }
+                cur: { type: integer }
+                max: { type: integer }
+            headings:
+              type: array
+              items:
+                type: string
+                enum: [ENTITY_KYC, KYC, INVESTOR_DETAILS, FATCA_CRS, NOMINEE, BANK_LINKAGE, VKYC]
+        form:
+          type: object
+          additionalProperties: false
+          required: [id]
+          properties:
+            id:        { type: string }
+            url:       { type: string, format: uri }
+            mime_type: { type: string, enum: [text/html, application/html] }
+        form_response:
+          type: object
+          additionalProperties: false
+          properties:
+            status:        { type: string, enum: [SUBMITTED, SUCCESS, FAILED] }
+            submission_id: { type: string }
+
+    TagGroup:
+      type: object
+      additionalProperties: false
+      required: [descriptor, list]
+      properties:
+        display:    { type: boolean, default: false }
+        descriptor: { $ref: '#/components/schemas/Descriptor' }
+        list:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Tag'
+
+    Tag:
+      type: object
+      additionalProperties: false
+      required: [descriptor, value]
+      properties:
+        descriptor: { $ref: '#/components/schemas/Descriptor' }
+        value:      { type: string }
+        display:    { type: boolean }
+
+    Descriptor:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string }
+        code: { type: string }
+
+    Error:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          pattern: '^8320[0-4][0-9]$'
+        message: { type: string }
+
+    Ack:
+      type: object
+      properties:
+        message:
+          type: object
+          properties:
+            ack:
+              type: object
+              properties:
+                status: { type: string, enum: [ACK, NACK] }
+        error:
+          $ref: '#/components/schemas/Error'
+
+  x-ondc-fis15:
+
+    when-it-fires:
+      description: >-
+        Every trigger for an unsolicited push, in lifecycle order. A buyer app
+        that handles only the payment ones will lose the form outcomes and the
+        entire post-booking life of the deposit.
+      triggers:
+        - stage: onboarding
+          trigger: A redirect form completed — KYC, DigiLocker, eSign.
+          order_id: absent
+          carries: xinput.form_response with status and submission_id.
+        - stage: onboarding
+          trigger: An asynchronous ETB check resolved.
+          order_id: absent
+          carries: INVESTOR_STATUS with ETB_CONFIRMED or NTB_CONFIRMED.
+        - stage: settlement
+          trigger: Payment succeeded, failed, or is still unknown.
+          carries: payments[].status, and params.transaction_id once PAID.
+        - stage: settlement
+          trigger: Payment received where VKYC is deferred.
+          carries: fulfillment INITIATED, the VKYC form, and VKYC_DEADLINE.
+        - stage: settlement
+          trigger: The deposit was booked in core banking.
+          carries: order ACTIVE, EXTERNAL_REFS, documents[] receipt, real dates.
+        - stage: settlement
+          trigger: VKYC SLA breached, or booking failed.
+          carries: order CANCELLED, fulfillment FAILED, an appended REFUND payment.
+        - stage: running
+          trigger: >-
+            A servicing form issued at /on_update resolved — a nominee change
+            submitted, or abandoned.
+          carries: >-
+            SERVICING_STATUS moving to SUCCESSFUL or REJECTED, the group it
+            updates (NOMINEE_INFORMATION), and xinput.form_response.
+        - stage: running
+          trigger: An interest payout fell due, on a non-cumulative deposit.
+          carries: A CHILD order with ref_order_ids pointing at the parent.
+        - stage: running
+          trigger: Maturity, renewal, or a withdrawal settled.
+          carries: order COMPLETED, or the parent moving to MATURED.
+
+    lifecycle:
+      order-states:
+        CREATED:   { next: [ACCEPTED, CANCELLED], note: Pre-confirm. No order id. }
+        ACCEPTED:  { next: [ACTIVE, CANCELLED],   note: Confirmed; awaiting payment, VKYC or booking. }
+        ACTIVE:    { next: [COMPLETED, CANCELLED],note: The deposit exists and is earning. }
+        COMPLETED: { next: [],                    note: Terminal. }
+        CANCELLED: { next: [],                    note: Terminal. Funds refunded if collected. }
+      fulfillment-states:
+        PENDING:          Order confirmed, payment outstanding.
+        INITIATED:        Paid; awaiting VKYC and/or booking. THE REFUND WINDOW.
+        ACTIVE:           Booked and earning. VALUE_DATE and MATURITY_DATE now real.
+        MATURED:          Reached the maturity date.
+        CLOSED_PREMATURE: Terminated early by a /cancel. The order moves to COMPLETED.
+        FAILED:           Could not be booked; refund due.
+        CANCELLED:        Cancelled before payment.
+        SUCCESSFUL:       Terminal state for one-time fulfillments — payouts, withdrawals, servicing.
+      coupling:
+        - Fulfillment FAILED or CANCELLED moves the order to CANCELLED, and any
+          collected funds must be refunded within refund_terms.refund_within.
+        - Fulfillment MATURED with the payout settled moves the order to COMPLETED.
+        - Fulfillment CLOSED_PREMATURE moves the order to COMPLETED — the
+          contract ended as contracted, not abnormally.
+        - A partial withdrawal does NOT change the parent state. The deposit
+          stays ACTIVE with a revised principal.
+
+    tag-groups:
+
+      DEPOSIT_INFORMATION:
+        level: item
+        required: mandatory
+        cardinality: once
+        description: >-
+          THE WHOLE DEPOSIT, IN ONE GROUP — the same group and the same field
+          set /on_init states and /confirm echoes, so a buyer app reads the
+          economics from one place on every issuer response and a booked
+          deposit is not a different shape from a proposed one. There is no
+          separate MATURITY_PROJECTION on this call and no DEPOSIT_TERMS
+          anywhere in FIS15.
+
+          THE DATES ARE NOT HERE. VALUE_DATE and MATURITY_DATE live in
+          stops[].time and nowhere else. Before booking the stops carry the
+          TENURE; once the fulfillment reaches ACTIVE they carry both real
+          dates, which the schema enforces on this call and this call only.
+
+          The depositor category is NOT in this group — it is an attribute of
+          the investor and sits in INVESTOR_STATUS on the fulfillment.
+        list:
+          PRINCIPAL:              { required: mandatory, type: decimal, description: 'Echoes items[].quantity.selected.measure.value.' }
+          TENURE_DAYS:            { required: mandatory, type: integer }
+          INTEREST_RATE:          { required: mandatory, type: decimal, description: 'The contracted rate, % p.a. Fixed for the life of the deposit.' }
+          ANNUALISED_YIELD:       { required: mandatory, type: decimal }
+          PAYOUT_FREQUENCY:
+            required: mandatory
+            enum: [CUMULATIVE, MONTHLY, QUARTERLY, HALF_YEARLY, ANNUAL]
+            description: >-
+              THE BRANCH KEY, exactly as at /on_init. CUMULATIVE means
+              MATURITY_AMOUNT is principal plus interest, NET_MATURITY_AMOUNT
+              is present and the per-payout fields are absent.
+          COMPOUNDING_FREQUENCY:  { required: mandatory, type: duration, description: 'P0D whenever PAYOUT_FREQUENCY is not CUMULATIVE.' }
+          MATURITY_INSTRUCTION:   { required: mandatory, enum: [CREDIT_TO_BANK, RENEW_PRINCIPAL, RENEW_PRINCIPAL_AND_INTEREST] }
+          MATURITY_AMOUNT:        { required: mandatory, type: decimal }
+          TOTAL_INTEREST:         { required: mandatory, type: decimal }
+          INTEREST_PER_PAYOUT:    { required: conditional, type: decimal, description: 'Mandatory when PAYOUT_FREQUENCY is not CUMULATIVE.' }
+          PAYOUT_COUNT:           { required: conditional, type: integer, description: 'Mandatory when PAYOUT_FREQUENCY is not CUMULATIVE.' }
+          FINAL_STUB_INTEREST:    { required: conditional, type: decimal, description: 'Mandatory when PAYOUT_FREQUENCY is not CUMULATIVE.' }
+          TDS_ESTIMATED:          { required: mandatory, type: decimal }
+          NET_MATURITY_AMOUNT:    { required: conditional, type: decimal, description: 'Mandatory when PAYOUT_FREQUENCY is CUMULATIVE.' }
+          PROJECTION_BASIS:       { required: optional }
+
+      INVESTOR_STATUS:
+        level: fulfillment
+        required: mandatory
+        cardinality: once
+        description: >-
+          The category the deposit was actually booked at, and what established
+          it. Carried on every push so that a buyer app rendering from one
+          response can say why the rate is what it is.
+        list:
+          INVESTOR_CATEGORY:
+            required: mandatory
+            enum: [INDIVIDUAL, JOINT, MINOR, HUF, NRI, CORPORATE]
+            description: >-
+              ADDED IN THIS REVISION. The entity type the deposit is booked
+              under, as the issuer determined it — the same field and the same
+              enum /on_init states and /confirm echoes. Carried on every push so
+              a buyer app rendering a portfolio entry from one response can say
+              whose deposit it is showing.
+          DEPOSITOR_CATEGORY: { required: mandatory, enum: [GENERAL, SENIOR_CITIZEN, SUPER_SENIOR_CITIZEN, STAFF, NRE, NRO] }
+          CATEGORY_BASIS:     { required: mandatory, enum: [CLAIMED, VERIFIED_ETB, VERIFIED_KYC] }
+          ETB_NTB_STATUS:     { required: optional, enum: [ETB_CHECK_PENDING, ETB_CONFIRMED, NTB_CONFIRMED], description: 'Present on the push that resolves an asynchronous ETB check.' }
+          ETB_CHECK_AS_ON:    { required: optional, type: datetime }
+
+      ONBOARDING_STATUS:
+        level: fulfillment
+        required: conditional
+        cardinality: once per stage — the group repeats
+        description: >-
+          One group per onboarding stage, repeated. Mandatory on any push whose
+          trigger is a stage outcome. A stage that has completed keeps its
+          entry for the life of the transaction.
+        list:
+          STAGE:
+            required: mandatory
+            enum: [ETB_CHECK, ENTITY_KYC, KYC, INVESTOR_DETAILS, FATCA_CRS, NOMINEE, BANK_LINKAGE, VKYC]
+            description: >-
+              ENTITY_KYC ADDED IN THIS REVISION, and the order aligned to
+              /on_init — the two enums held the same values in different orders,
+              which meant nothing and read as though it did. Identical to the
+              /on_init STAGE enum, because a stage reported mid-chain and the
+              same stage reported after booking are the same stage.
+          STATUS:
+            required: mandatory
+            enum: [PENDING, INITIATED, IN_PROGRESS, SUCCESSFUL, FAILED]
+            description: >-
+              IN_PROGRESS ADDED IN THIS REVISION, to match /on_init. A stage that
+              /on_init reported as IN_PROGRESS — a VKYC call the investor has
+              joined, a redirect form they are part way through — became
+              unreportable the moment the buyer app asked about it here, and an
+              issuer had to round it to INITIATED or SUCCESSFUL, neither of which
+              was true. Same defect as ENTITY_KYC, one field over.
+          MODE:       { required: optional, description: 'How the stage was carried out, e.g. AADHAAR_EKYC, PAN_CBS_LOOKUP, UPI_PENNY_DROP, VIDEO_LIVENESS.' }
+          UPDATED_AT: { required: mandatory, type: datetime }
+          REASON:     { required: conditional, description: 'Mandatory when STATUS is FAILED.' }
+
+      SERVICING_STATUS:
+        level: fulfillment
+        required: conditional
+        cardinality: once per servicing action — the group repeats
+        description: >-
+          DEFINED IN FIS15_on_update_API.yaml AND CARRIED HERE, because a
+          servicing action outlives the call that requested it. Mandatory on any
+          push whose trigger is a servicing outcome — chiefly the resolution of a
+          form issued at /on_update — and on every push thereafter.
+
+          IT ACCUMULATES, exactly as ONBOARDING_STATUS does. A group is added per
+          servicing action and kept for the life of the deposit, so a buyer app
+          reading any single response has the whole servicing history. An issuer
+          that returns only the latest action forces the buyer app to maintain a
+          merge, which is the failure no-partial-payload exists to prevent.
+
+          A servicing action does NOT get its own fulfillment. The deposit's
+          fulfillment stays type DEPOSIT throughout, and this group is what
+          reports the change — see decisions.no-servicing-fulfillment-type in
+          FIS15_update_API.yaml.
+        list:
+          ACTION:
+            required: mandatory
+            enum:
+              - PAYMENT_RETRY
+              - NOMINEE_UPDATE
+              - MATURITY_INSTRUCTION_UPDATE
+              - DOCUMENT_REQUEST
+              - CHAIN_ABANDONED
+          STATUS:
+            required: mandatory
+            enum: [ACCEPTED, IN_PROGRESS, SUCCESSFUL, REJECTED]
+            description: >-
+              REJECTED appears HERE and never on /on_update, where a refusal
+              uses the error envelope. This call is where an action that was
+              accepted and then failed downstream is reported — a nominee form
+              the investor abandoned, or a rate-limit the issuer hit after
+              acknowledging.
+          REQUESTED_AT:   { required: mandatory, type: datetime, description: 'The timestamp of the /update that began this action.' }
+          UPDATED_AT:     { required: mandatory, type: datetime }
+          EFFECTIVE_FROM: { required: conditional, type: date, description: 'Mandatory when the change takes effect later than now, which for MATURITY_INSTRUCTION_UPDATE is always.' }
+          REFERENCE:      { required: optional, description: 'The issuer servicing ticket minted at /on_update. Carry it forward unchanged — it is what correlates a form outcome here to the action that started it.' }
+          REASON:         { required: conditional, description: 'Mandatory when STATUS is REJECTED.' }
+
+      LINKED_BANK_ACCOUNT:
+        level: fulfillment
+        required: conditional
+        cardinality: once per account
+        description: >-
+          The account the deposit credits at maturity and the account a refund
+          returns to. Refunds go to THIS account and no other, or 832036 — which
+          is why the role names must mean the same thing on every call, and from
+          this revision they do.
+        list:
+          IDENTIFIER:             { required: mandatory, description: 'The opaque id the issuer minted at /on_init and the buyer app echoed at /confirm.' }
+          ACCOUNT_ROLE:
+            required: mandatory
+            enum: [FUNDING, PAYOUT, BOTH]
+            description: >-
+              WAS [SOURCE, PAYOUT, BOTH] UNTIL THIS REVISION. SOURCE and FUNDING
+              named the same thing — the account the money came from — and
+              /on_init and /confirm both said FUNDING, the latter in a
+              schema-enforced const. FUNDING wins because it pairs with PAYOUT;
+              SOURCE pairs with DESTINATION, which is not the other value here.
+              Every example used BOTH, so the disagreement never showed up in a
+              payload and would have surfaced as a live defect on the first
+              funding-only account.
+          MASKED_ACCOUNT_NUMBER:  { required: optional }
+          ACCOUNT_HOLDER_NAME:    { required: optional }
+          ACCOUNT_TYPE:           { required: optional, enum: [SAVINGS, CURRENT, NRE, NRO] }
+          BANK_NAME:              { required: optional }
+          IFSC:                   { required: optional }
+          VERIFICATION_METHOD:    { required: optional }
+          VERIFICATION_STATUS:    { required: optional, enum: [PENDING, SUCCESSFUL, FAILED] }
+
+      NOMINEE_INFORMATION:
+        level: fulfillment
+        required: conditional
+        cardinality: once
+        description: Present once the NOMINEE stage is SUCCESSFUL. Names are masked and stay masked.
+        list:
+          NOMINATION_OPTED:      { required: mandatory, enum: ['true', 'false'] }
+          NOMINEE_COUNT:         { required: conditional, type: integer, description: 'Mandatory when NOMINATION_OPTED is true.' }
+          NOMINEE_NAME_MASKED:   { required: optional }
+          NOMINEE_RELATIONSHIP:  { required: optional }
+          ALLOCATION_PERCENTAGE: { required: optional, type: decimal }
+
+      VKYC_TERMS:
+        level: fulfillment
+        required: conditional
+        cardinality: once
+        description: >-
+          Mandatory on any push where VKYC is outstanding. VKYC_DEADLINE is a
+          real instant here, computed from VKYC_SLA at /on_confirm; breaching
+          it moves the fulfillment to FAILED and the order to CANCELLED.
+        list:
+          VKYC_REQUIRED:   { required: mandatory, enum: ['true', 'false'] }
+          VKYC_SEQUENCING:
+            required: conditional
+            enum: [PRE_PAYMENT, POST_PAYMENT, NOT_REQUIRED]
+            description: >-
+              Mandatory when VKYC_REQUIRED is true. NOT_REQUIRED ADDED IN THIS
+              REVISION to match /on_search and /on_init, which both carry it: an
+              issuer that stated NOT_REQUIRED at the terminal /on_init had to
+              express the same fact here by omitting the field instead, so one
+              fact had two encodings depending on which call you read.
+          VKYC_SLA:        { required: conditional, type: duration, description: 'Mandatory when VKYC_REQUIRED is true.' }
+          VKYC_DEADLINE:   { required: conditional, type: datetime, description: 'Mandatory once payment is expected.' }
+
+      EXTERNAL_REFS:
+        level: fulfillment
+        required: conditional
+        cardinality: once
+        description: >-
+          THE PROOF THE DEPOSIT EXISTS IN CORE BANKING. Mandatory once the
+          fulfillment reaches ACTIVE, and absent before it. These are the
+          handles a branch or a call centre can act on.
+        list:
+          DEPOSIT_ACCOUNT_NUMBER: { required: mandatory }
+          FD_RECEIPT_NUMBER:      { required: mandatory }
+          CBS_REFERENCE:          { required: optional }
+
+      CANCELLATION_INFO:
+        level: fulfillment
+        required: conditional
+        cardinality: once
+        description: Mandatory whenever the order is CANCELLED. Says who ended it and why.
+        list:
+          CANCELLED_BY:   { required: mandatory, enum: [BAP, BPP, INVESTOR] }
+          REASON_CODE:    { required: mandatory }
+          REASON_MESSAGE: { required: optional }
+
+      PAYMENT_ADVICE:
+        level: fulfillment
+        required: conditional
+        cardinality: once
+        description: >-
+          Mandatory when a payment failed or the accepted rail differs from the
+          one chosen at /confirm. Substituting a rail silently is a
+          conformance failure.
+        list:
+          PROPOSED_MODE:  { required: mandatory, enum: [NETBANKING, UPI, IMPS, NEFT, RTGS] }
+          ACCEPTED_MODE:  { required: conditional, enum: [NETBANKING, UPI, IMPS, NEFT, RTGS], description: 'Absent when nothing was accepted.' }
+          REASON_CODE:    { required: mandatory }
+          REASON_MESSAGE: { required: optional }
+
+      PAYMENT_METHOD:
+        level: payment
+        required: mandatory
+        cardinality: once per payment entry
+        description: >-
+          One group on every entry in the append-only ledger, including the
+          appended REFUND. The refund rail need not be the collection rail.
+        list:
+          MODE: { required: mandatory, enum: [NETBANKING, UPI, IMPS, NEFT, RTGS] }
+          AUTH: { required: optional }
+
+      BPP_TERMS:
+        level: order
+        required: mandatory
+        description: The seller's terms, restated on every push so the terms in force are readable from any single response.
+        list:
+          STATIC_TERMS:     { required: mandatory, type: uri }
+          OFFLINE_CONTRACT: { required: mandatory, enum: ['true', 'false'] }
+
+    payment-ledger:
+      principle: Append-only. Entries are added, never rewritten.
+      why: >-
+        A refund that mutates the original payment to a REFUNDED state destroys
+        the record that money was in fact collected, and forces a status enum
+        extension the beckn core does not have. Appending a REFUND entry keeps
+        both facts true and reconcilable.
+      rules:
+        - The original PRE_FULFILLMENT entry keeps its PAID status forever.
+        - A refund is a new entry with type REFUND and its own transaction_id.
+        - Refunds go to the FUNDING account only, never to an account supplied
+          after the fact. Otherwise 832036.
+        - params.transaction_id appears once status is PAID and is the handle
+          for any dispute. Retain it.
+
+    rules:
+      - TAG LEVELS ARE FIXED ACROSS THE JOURNEY. item carries the deposit's
+        economics under exactly two names. DEPOSIT_CONFIGURATION at /select and
+        /init, where the buyer app states what the investor chose.
+        DEPOSIT_INFORMATION from /on_init onward, where the issuer states the
+        resulting contract and /confirm echoes that statement back verbatim.
+        /on_select is the single exception and answers with MATURITY_PROJECTION
+        alone. Both names sit on the item, in continuation of the catalog's
+        RATE_CARD_ENTRY and PAYOUT_OPTION. THE NAME STATES THE AUTHORITY — a
+        CONFIGURATION is asked for, INFORMATION is stated. There is no
+        DEPOSIT_TERMS anywhere in FIS15. fulfillment carries the investor and
+        the servicing. payment carries money movement. order carries only
+        BAP_TERMS and BPP_TERMS, and nothing else, ever.
+      - Dates live in stops, never in a tag. stops[].time carries the tenure
+        before booking and the real VALUE_DATE and MATURITY_DATE after it. On
+        this call that is schema-enforced — a fulfillment in state ACTIVE must
+        carry both stops.
+      - Solicited and unsolicited on_status are the same payload. One handler.
+      - order.id is absent before /on_confirm and mandatory after. Schema-enforced.
+      - A mid-chain push is correlated by transaction_id alone.
+      - When fulfillment state is ACTIVE the stops MUST carry VALUE_DATE and
+        MATURITY_DATE. Schema-enforced.
+      - The unsolicited on_status is authoritative over the browser callback for
+        every form and payment outcome.
+      - A terminal NOT-PAID means pending-or-unknown. Wait for a further push;
+        do not treat it as failure.
+      - A failed payment does NOT cancel the order. It stays ACCEPTED with the
+        fulfillment PENDING, and the buyer app requests a fresh link via /update
+        on order.payments.
+      - SERVICING_STATUS accumulates and is carried on every push once a
+        servicing action has occurred, not only on the push that resolves one.
+        A buyer app polling months later must still see the nominee change it
+        made, or it cannot render a servicing history at all.
+      - Carry SERVICING_STATUS.REFERENCE forward from /on_update unchanged. It
+        is the only thing that correlates a form outcome reported here to the
+        action that requested it — transaction_id cannot, because by then it has
+        been reused for everything else the deposit has done.
+      - A servicing action never gets its own fulfillment. The deposit's
+        fulfillment stays type DEPOSIT for the life of the order, and the
+        servicing types that used to be in the type enum are gone.
+      - INVESTOR_CATEGORY and DEPOSITOR_CATEGORY are both carried on every push.
+        The first says who is depositing, the second says at what rate class;
+        they are different questions and neither substitutes for the other.
+      - ACCOUNT_ROLE is FUNDING, PAYOUT or BOTH — the same three values on every
+        call in the journey. SOURCE is retired.
+      - Do not poll a terminal order. COMPLETED and CANCELLED do not change.
+
+    decisions:
+      order-id-conditional:
+        change: if status is not CREATED then id is required.
+        why: >-
+          Making id unconditionally mandatory would forbid the mid-chain form
+          push, which is a real and necessary message. Making it optional
+          everywhere would let a post-confirm payload omit the one handle the
+          buyer app needs. The conditional is the only correct shape.
+      active-requires-dates:
+        change: >-
+          if fulfillment state is ACTIVE then stops must contain VALUE_DATE and
+          MATURITY_DATE.
+        why: >-
+          ACTIVE means the deposit exists, and a deposit without a maturity date
+          is not a deposit. Enforcing it stops an issuer reporting ACTIVE while
+          still carrying only the indicative tenure, which would leave the buyer
+          app unable to render a portfolio entry.
+      successful-added-to-states:
+        change: SUCCESSFUL added to the fulfillment state enum.
+        why: >-
+          The deposit state machine does not use it, but one-time fulfillments
+          do — interest payouts, withdrawals, document requests all terminate in
+          SUCCESSFUL. Since on_status reports every fulfillment type, the enum
+          must cover both machines.
+      enum-drift-swept:
+        change: >-
+          ONBOARDING_STATUS.STATUS gained IN_PROGRESS and
+          VKYC_TERMS.VKYC_SEQUENCING gained NOT_REQUIRED, in both cases to match
+          the enums /on_init and /on_search already used.
+        why: >-
+          Found by sweeping every tag-group field enum across all twelve specs
+          while verifying the ACCOUNT_ROLE fix — the same defect twice more. Both
+          are values an earlier call can legitimately state and this one could
+          not report, so an issuer had to approximate: round IN_PROGRESS to
+          INITIATED, or express NOT_REQUIRED by omission. A spec that forces an
+          approximation gets one, and different issuers pick different ones.
+        note: >-
+          The sweep leaves exactly one enum disagreement standing, and it is
+          deliberate: CANCELLATION_INFO.CANCELLED_BY is [BAP, BPP, INVESTOR] here
+          and on /on_update, but [BAP, INVESTOR] on /update, because a buyer app
+          cannot assert that the SELLER cancelled. That is a directional
+          narrowing, not drift.
+
+      account-role-names-unified:
+        change: ACCOUNT_ROLE's enum changed from [SOURCE, PAYOUT, BOTH] to [FUNDING, PAYOUT, BOTH].
+        why: >-
+          Two names for one concept across three calls. /on_init offers accounts
+          with FUNDING, /confirm echoes one back with FUNDING in a schema const,
+          and this call reported the same account as SOURCE. FUNDING is the
+          survivor because it pairs with PAYOUT and because it is the word the
+          BRD and /on_init both use for the account a deposit is funded from.
+        cost: >-
+          Nothing observable — every example in the spec used BOTH, so no payload
+          changes. That is also what made it dangerous: the first issuer to
+          return a funding-only account would have produced a payload that
+          validated against /on_init and failed against /on_status, or the
+          reverse, with nothing in the examples to have warned them.
+
+      investor-category-carried:
+        change: INVESTOR_CATEGORY added to INVESTOR_STATUS.
+        why: >-
+          /confirm requires it, /on_init now states it, and a status push that
+          omitted it would leave a buyer app rehydrating a portfolio after a
+          cache loss unable to say whether it was looking at an individual's
+          deposit or a company's. The group already carries the other
+          issuer-determined classification; carrying one and not the other was
+          an omission rather than a distinction.
+
+      entity-kyc-reportable:
+        change: >-
+          ENTITY_KYC added to ONBOARDING_STATUS.STAGE, and the STAGE and xinput
+          headings enums reordered to match /on_init.
+        why: >-
+          Same defect as on /on_init — ENTITY_KYC was issuable as a form heading
+          and unreportable as a stage, so a non-individual's entity KYC could be
+          put on screen and never resolved. Since a stage entry survives for the
+          life of the transaction and is reported here long after onboarding
+          ends, the gap outlived the chain that created it.
+
+      withdrawal-types-retired:
+        change: >-
+          PREMATURE_WITHDRAWAL and PARTIAL_WITHDRAWAL were removed from the
+          fulfillment type enum here and in every other spec that carried them.
+        why: >-
+          When they were kept in the last revision the reasoning was that they
+          were blocked on the payment object rather than unwanted. Defining
+          /cancel settled it the other way: a withdrawal is the deposit reaching
+          CLOSED_PREMATURE, not a second thing delivered alongside it, and the
+          payout rides the parent order's ledger rather than a child order. With
+          no call able to produce a withdrawal-typed fulfillment, keeping the
+          values would have recreated exactly the trap the servicing types were
+          retired to remove.
+        note: >-
+          PREMATURE_WITHDRAWAL_ALLOWED and PARTIAL_WITHDRAWAL_ALLOWED in
+          PRODUCT_INFORMATION are NOT affected and must stay. They are capability
+          flags, and they are what /cancel checks a request against before
+          answering 832024. Retiring a fulfillment type does not retire the
+          product feature it was named after.
+
+      servicing-types-retired:
+        change: >-
+          NOMINEE_UPDATE, MATURITY_INSTRUCTION_UPDATE and DOCUMENT_REQUEST were
+          removed from the fulfillment type enum, and SERVICING_STATUS was
+          brought in from FIS15_on_update_API.yaml to replace what they gestured
+          at.
+        why: >-
+          They were never populated by any call, and once /update was defined it
+          became clear they never would be — a nominee change is not a second
+          thing being delivered alongside the deposit, and modelling it as one
+          would mean the same order id reports type NOMINEE_UPDATE on one push
+          and DEPOSIT on the next. An enum value nothing can produce reads as an
+          unimplemented feature and invites an implementer to build against it.
+          Retiring is honest where reserving would not be: these are values the
+          design decided against, not values it has not reached yet.
+        contrast: >-
+          The values that REMAIN unused are a different case and stay.
+          INTEREST_PAYOUT, MATURITY_PAYOUT and AUTO_RENEWAL have a documented
+          production path in when-it-fires — they arrive as child orders.
+          PREMATURE_WITHDRAWAL and PARTIAL_WITHDRAWAL are blocked on the payment
+          object rather than unwanted. KYC is reachable from /init today. Each
+          of those is waiting on work; these three were waiting on nothing.
+        cost: >-
+          Removing an enum value is a breaking change for anyone already coding
+          against it. Acceptable here only because the domain code is still
+          unallocated and no production integration exists — it would not be
+          acceptable after go-live, which is the argument for doing it now.
+
+      no-partial-payload:
+        change: The full order is returned on every push, never a delta.
+        why: >-
+          A push carrying only what changed would be smaller but forces the
+          buyer app to maintain a merge, and a missed push then leaves state
+          permanently wrong. Full-state pushes are self-healing.
+
+    open-points:
+      servicing-history-retention:
+        status: unresolved
+        question: >-
+          SERVICING_STATUS accumulates for the life of the deposit, and a
+          five-year deposit with an active investor could carry a few dozen
+          groups on every push — on top of a full order that is already restated
+          each time.
+        recommendation: >-
+          Cap the carried history at the most recent N actions plus every action
+          still IN_PROGRESS, and let a buyer app that wants the rest ask for it.
+          Revisit only if real deposits breach it; the same soft-cap reasoning
+          as rate-card-cardinality in /on_search.
+
+      push-delivery-guarantee:
+        status: unresolved
+        question: >-
+          Nothing defines retry or acknowledgement semantics for an unsolicited
+          push. If the buyer app is down when the deposit is booked, the receipt
+          push is lost and the only recovery is a poll the buyer app does not
+          know it needs.
+        recommendation: >-
+          Require retry with backoff on a non-ACK, and define how long an issuer
+          must keep retrying. Without it the push-first design has no floor.
+      duplicate-pushes:
+        status: unresolved
+        question: >-
+          Retries imply duplicates, and nothing makes an on_status idempotent —
+          there is no sequence number or state version, so a buyer app cannot
+          tell a retry from a genuine later update carrying the same state.
+        recommendation: >-
+          Add a monotonic order.version or updated_at that a buyer app can
+          compare, and specify that a lower version is discarded.
+      out-of-order-delivery:
+        status: unresolved
+        question: >-
+          Two pushes issued close together can arrive reversed, so a buyer app
+          could apply ACTIVE and then overwrite it with the earlier INITIATED.
+        recommendation: >-
+          The same version field solves this. Until then, buyer apps should
+          treat state transitions as monotonic and refuse backward moves,
+          except the legitimate ACTIVE to CANCELLED on reversal.
+
+    source:
+      derived-from:
+        - FD_ONDC_FIS15_API_Spec.md (sections 9.2, 9.3, 9.4, 12)
+        - FD_ONDC_FIS15_Schema.xlsx (API Fields, on_status rows — 54 fields)
+        - FD_ONDC_BRD_Final.docx v1.0, Flow > Identity Verification Completion,
+          Booking Confirmation
+      chains-with:
+        - FIS15_status_API.yaml — the solicited path
+        - FIS15_on_confirm_API.yaml — mints the id that appears from here on
+        - FIS15_on_init_API.yaml — the mid-chain pushes belong to that stage
+      beckn-core: 1.3.0

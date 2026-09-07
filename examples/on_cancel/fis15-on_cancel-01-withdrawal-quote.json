@@ -1,0 +1,271 @@
+{
+  "context": {
+    "location": {
+      "country": {
+        "code": "IND"
+      },
+      "city": {
+        "code": "*"
+      }
+    },
+    "domain": "ONDC:FIS15",
+    "action": "on_cancel",
+    "version": "0.2.0",
+    "bap_id": "api.buyerapp.com",
+    "bap_uri": "https://api.buyerapp.com/ondc",
+    "bpp_id": "api.icicibank.com",
+    "bpp_uri": "https://api.icicibank.com/ondc",
+    "transaction_id": "e9895269-e7a9-4003-9ebc-534413a6017b",
+    "message_id": "7d419c60-25ab-4f83-91e6-3c08b7d5a214",
+    "timestamp": "2027-03-15T10:12:07.000Z",
+    "ttl": "PT10M"
+  },
+  "message": {
+    "order": {
+      "id": "FD-ICICI-20260902-004481",
+      "status": "ACTIVE",
+      "provider": {
+        "id": "icici_fd",
+        "descriptor": {
+          "name": "ICICI Bank"
+        }
+      },
+      "items": [
+        {
+          "id": "icici_fd_regular",
+          "descriptor": {
+            "name": "ICICI Bank Fixed Deposit",
+            "code": "DEPOSIT_PRODUCT"
+          },
+          "fulfillment_ids": [
+            "ff_dep_01"
+          ],
+          "quantity": {
+            "selected": {
+              "measure": {
+                "value": "500000",
+                "unit": "INR"
+              }
+            }
+          },
+          "tags": [
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Withdrawal Information",
+                "code": "WITHDRAWAL_INFORMATION"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "WITHDRAWAL_TYPE"
+                  },
+                  "value": "FULL"
+                },
+                {
+                  "descriptor": {
+                    "code": "RUN_TENURE_DAYS"
+                  },
+                  "value": "194"
+                },
+                {
+                  "descriptor": {
+                    "code": "CONTRACTED_RATE"
+                  },
+                  "value": "6.25"
+                },
+                {
+                  "descriptor": {
+                    "code": "RATE_BASIS"
+                  },
+                  "value": "CARD_RATE_FOR_RUN_TENURE"
+                },
+                {
+                  "descriptor": {
+                    "code": "CARD_RATE_FOR_RUN_TENURE"
+                  },
+                  "value": "5.50"
+                },
+                {
+                  "descriptor": {
+                    "code": "PENALTY_TYPE"
+                  },
+                  "value": "RATE_REDUCTION"
+                },
+                {
+                  "descriptor": {
+                    "code": "PENALTY_BPS"
+                  },
+                  "value": "50"
+                },
+                {
+                  "descriptor": {
+                    "code": "APPLICABLE_RATE"
+                  },
+                  "value": "5.00"
+                },
+                {
+                  "descriptor": {
+                    "code": "INTEREST_FORGONE"
+                  },
+                  "value": "21781.92"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "fulfillments": [
+        {
+          "id": "ff_dep_01",
+          "type": "DEPOSIT",
+          "state": {
+            "descriptor": {
+              "name": "Active",
+              "code": "ACTIVE"
+            }
+          },
+          "customer": {
+            "person": {
+              "id": "pan:abcpk1234f"
+            }
+          },
+          "stops": [
+            {
+              "time": {
+                "label": "VALUE_DATE",
+                "timestamp": "2026-09-02T00:00:00.000Z"
+              }
+            },
+            {
+              "time": {
+                "label": "MATURITY_DATE",
+                "timestamp": "2027-10-07T00:00:00.000Z"
+              }
+            }
+          ],
+          "tags": [
+            {
+              "display": false,
+              "descriptor": {
+                "name": "Investor Status",
+                "code": "INVESTOR_STATUS"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "INVESTOR_CATEGORY"
+                  },
+                  "value": "INDIVIDUAL"
+                },
+                {
+                  "descriptor": {
+                    "code": "DEPOSITOR_CATEGORY"
+                  },
+                  "value": "GENERAL"
+                },
+                {
+                  "descriptor": {
+                    "code": "CATEGORY_BASIS"
+                  },
+                  "value": "VERIFIED_KYC"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "quote": {
+        "id": "cxl_004481_20270315_a71f",
+        "price": {
+          "currency": "INR",
+          "value": "513381.23"
+        },
+        "breakup": [
+          {
+            "item": {
+              "id": "icici_fd_regular",
+              "fulfillment_ids": [
+                "ff_dep_01"
+              ]
+            },
+            "title": "PRINCIPAL",
+            "price": {
+              "currency": "INR",
+              "value": "500000.00"
+            }
+          },
+          {
+            "title": "INTEREST_ACCRUED",
+            "price": {
+              "currency": "INR",
+              "value": "13381.23"
+            }
+          },
+          {
+            "title": "TDS",
+            "price": {
+              "currency": "INR",
+              "value": "0.00"
+            }
+          },
+          {
+            "title": "NET_PAYOUT",
+            "price": {
+              "currency": "INR",
+              "value": "513381.23"
+            }
+          }
+        ],
+        "ttl": "PT15M"
+      },
+      "cancellation_terms": [
+        {
+          "fulfillment_state": {
+            "descriptor": {
+              "code": "PENDING"
+            }
+          },
+          "reason_required": false,
+          "cancellation_fee": {
+            "percentage": "0.00"
+          }
+        },
+        {
+          "fulfillment_state": {
+            "descriptor": {
+              "code": "ACTIVE"
+            }
+          },
+          "reason_required": true,
+          "cancellation_fee": {
+            "percentage": "0.50"
+          }
+        }
+      ],
+      "tags": [
+        {
+          "display": false,
+          "descriptor": {
+            "name": "BPP Terms of Engagement",
+            "code": "BPP_TERMS"
+          },
+          "list": [
+            {
+              "descriptor": {
+                "code": "STATIC_TERMS"
+              },
+              "value": "https://www.icicibank.com/legal/ondc:fis15/static_terms?v=0.1"
+            },
+            {
+              "descriptor": {
+                "code": "OFFLINE_CONTRACT"
+              },
+              "value": "true"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

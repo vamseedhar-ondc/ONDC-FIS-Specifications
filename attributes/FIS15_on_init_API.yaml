@@ -1,0 +1,1153 @@
+openapi: 3.0.0
+info:
+  title: ONDC FIS15 — On Init API
+  description: >-
+    BPP → BAP response to each /init round. It returns the ETB/NTB verdict,
+    drives the entire onboarding form chain, and — on the terminal round —
+    turns the indicative price from /on_select into the binding quote the
+    investor commits against.
+
+    on_init is a STATE MACHINE, not a single response. The seller decides how
+    many forms the investor must complete and issues them one at a time,
+    declaring the chain's length up front in xinput.head.index so the buyer app
+    can render a progress indicator. Four shapes exist — the opening response,
+    a chain progression, the terminal response, and the ETB fast path that
+    skips the chain entirely.
+
+    THE PRICE WAS SET AT /on_select. This call does not re-derive it mid-chain.
+    The indicative quote is carried forward untouched until the terminal round,
+    which restates it as binding with a fresh ttl — so a chain that takes ten
+    minutes cannot leave a daily-repricing issuer holding a stale rate, and the
+    investor sees one number from the review screen through to payment.
+
+    NO PAYMENT OBJECT IS RETURNED HERE. The terminal round advertises which
+    rails the issuer will accept, and at what amounts, in repeated
+    PAYMENT_OPTION groups. The investor chooses one at /confirm; the payment
+    instruction is issued at /on_confirm.
+
+    The gate on /confirm is xinput.required, NOT the absence of a form. A
+    response can carry required:false AND a form URL — that is an OPTIONAL
+    step, and the nominee step on the ETB path is exactly that.
+
+    Domain code ONDC:FIS15 and error range 832001-832042 are requested from
+    ONDC and not yet allocated.
+  version: 0.2.0
+
+servers:
+  - url: https://api.buyerapp.com/ondc
+    description: BAP (buyer app) callback endpoint
+
+paths:
+  /on_init:
+    post:
+      summary: Return the ETB/NTB verdict, the next form, and finally the binding quote
+      description: >-
+        Returns an ACK/NACK synchronously. Every response carries the quote,
+        but only the TERMINAL response carries it as binding with a fresh
+        mandatory quote.ttl. Mid-chain the quote is the indicative one minted
+        at /on_select, echoed unchanged.
+      operationId: onInit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnInitRequest'
+            examples:
+              S1_ntb_round1:
+                summary: 'Shape 1 — NTB verdict, quote echoed, first form'
+                description: >-
+                  Response to the opening /init. Carries INVESTOR_STATUS
+                  NTB_CONFIRMED, the 6.25% quote echoed from /on_select, and
+                  form 1 of 5 as a redirect. xinput.required is true —
+                  /confirm is not yet legal.
+                value:
+                  $ref: '../examples/on_init/fis15-on_init-01-ntb-round1.json'
+
+              S2_next_form:
+                summary: 'Shape 2 — chain progression'
+                description: >-
+                  head.index.cur advances 0 to 1, the previous stage flips to
+                  SUCCESSFUL in ONBOARDING_STATUS, and the next form is issued.
+                  This shape repeats once per form.
+                value:
+                  $ref: '../examples/on_init/fis15-on_init-02-next-form.json'
+
+              S3_terminal:
+                summary: 'Shape 3 — chain complete, /confirm is legal'
+                description: >-
+                  form_response.status SUCCESS with xinput.required false and no
+                  form URL. Carries everything accumulated during the chain —
+                  nominee, linked accounts, all seven onboarding stages — plus
+                  the binding quote with a fresh ttl, cancellation and refund
+                  terms, and the PAYMENT_OPTION groups.
+                value:
+                  $ref: '../examples/on_init/fis15-on_init-03-terminal.json'
+
+              S4_etb_fast_path:
+                summary: 'Shape 4 — ETB, chain skipped'
+                description: >-
+                  ETB_CONFIRMED, KYC already on file, two existing accounts
+                  offered as repeated tag groups, no VKYC. Terminal on arrival,
+                  so it carries the binding quote and PAYMENT_OPTION too.
+                  xinput.required is false but a nominee form is still offered
+                  — an OPTIONAL step, not a gate.
+                value:
+                  $ref: '../examples/on_init/fis15-on_init-04-etb-fast-path.json'
+      responses:
+        default:
+          description: ACK / NACK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ack'
+
+components:
+  schemas:
+
+    OnInitRequest:
+      type: object
+      additionalProperties: false
+      required: [context, message]
+      properties:
+        context:
+          allOf:
+            - $ref: '#/components/schemas/Context'
+            - type: object
+              required: [action, bpp_id, bpp_uri]
+              properties:
+                action:
+                  enum: [on_init]
+        message:
+          type: object
+          additionalProperties: false
+          required: [order]
+          properties:
+            order:
+              $ref: '#/components/schemas/Order'
+        error:
+          $ref: '#/components/schemas/Error'
+
+    Context:
+      type: object
+      additionalProperties: false
+      required:
+        - location
+        - domain
+        - action
+        - version
+        - bap_id
+        - bap_uri
+        - bpp_id
+        - bpp_uri
+        - transaction_id
+        - message_id
+        - timestamp
+        - ttl
+      properties:
+        location:
+          type: object
+          additionalProperties: false
+          required: [country, city]
+          properties:
+            country:
+              type: object
+              properties:
+                code: { type: string, enum: [IND] }
+            city:
+              type: object
+              properties:
+                code: { type: string, enum: ['*'] }
+        domain:  { type: string, enum: [ONDC:FIS15] }
+        action:  { type: string, enum: [on_init] }
+        version: { type: string, example: 0.2.0 }
+        bap_id:  { type: string }
+        bap_uri: { type: string, format: uri }
+        bpp_id:  { type: string }
+        bpp_uri: { type: string, format: uri }
+        transaction_id:
+          type: string
+          format: uuid
+          description: Echoes the /init being answered. Constant for the journey.
+        message_id:
+          type: string
+          format: uuid
+          description: >-
+            Echoes the message_id of the /init being answered, so the BAP can
+            correlate a response to a round.
+        timestamp: { type: string, format: date-time }
+        ttl:       { type: string, example: PT10M }
+
+    Order:
+      type: object
+      additionalProperties: false
+      required: [provider, items, fulfillments, quote, xinput, tags]
+      properties:
+        status:
+          type: string
+          enum: [CREATED]
+          description: >-
+            Present on the TERMINAL response only, and always CREATED. There is
+            no order.id yet — the issuer mints it at /on_confirm. Mid-chain
+            responses carry no status at all: nothing has been drafted.
+        provider:
+          type: object
+          additionalProperties: false
+          required: [id]
+          properties:
+            id:         { type: string }
+            descriptor: { $ref: '#/components/schemas/Descriptor' }
+        ref_order_ids:
+          type: array
+          items: { type: string }
+        items:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/Item'
+        fulfillments:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/Fulfillment'
+        quote:
+          $ref: '#/components/schemas/Quote'
+        cancellation_terms:
+          type: array
+          items:
+            $ref: '#/components/schemas/CancellationTerm'
+          description: >-
+            The premature-withdrawal penalty schedule, keyed to fulfillment
+            state. Declared here so the buyer app can tell the investor what
+            breaking the deposit early will cost BEFORE they commit.
+        refund_terms:
+          type: array
+          items:
+            $ref: '#/components/schemas/RefundTerm'
+          description: >-
+            Mandatory when VKYC_SEQUENCING is POST_PAYMENT. Declares that the
+            money is refundable, how much, and within what window — before the
+            investor pays into a deposit that does not yet exist.
+        xinput:
+          $ref: '#/components/schemas/XInput'
+        tags:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/TagGroup'
+          description: Carries BPP_TERMS.
+
+    Item:
+      type: object
+      additionalProperties: false
+      required: [id, descriptor, fulfillment_ids, quantity, tags]
+      properties:
+        id: { type: string }
+        descriptor:
+          type: object
+          required: [name, code]
+          properties:
+            name: { type: string }
+            code: { type: string, enum: [DEPOSIT_PRODUCT, SERVICE] }
+        fulfillment_ids:
+          type: array
+          minItems: 1
+          items: { type: string }
+        quantity:
+          type: object
+          additionalProperties: false
+          required: [selected]
+          properties:
+            selected:
+              type: object
+              additionalProperties: false
+              required: [measure]
+              properties:
+                measure:
+                  type: object
+                  additionalProperties: false
+                  required: [value, unit]
+                  properties:
+                    value: { type: string }
+                    unit:  { type: string, enum: [INR] }
+        tags:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/TagGroup'
+          description: >-
+            PRODUCT_INFORMATION, trimmed to what the buyer app must show before
+            /confirm — chiefly PRODUCT_TNC, the terms requiring clickwrap consent.
+
+    Fulfillment:
+      type: object
+      additionalProperties: false
+      required: [id, type, customer, stops, tags]
+      properties:
+        id:   { type: string }
+        type: { type: string, enum: [DEPOSIT, KYC] }
+        customer:
+          type: object
+          additionalProperties: false
+          required: [person]
+          properties:
+            person:
+              type: object
+              additionalProperties: false
+              required: [id]
+              properties:
+                id: { type: string, example: pan:abcpk1234f }
+        stops:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            additionalProperties: false
+            required: [time]
+            properties:
+              time:
+                type: object
+                additionalProperties: false
+                properties:
+                  label:    { type: string, enum: [TENURE] }
+                  duration: { type: string, example: P400D }
+        tags:
+          type: array
+          minItems: 2
+          items:
+            $ref: '#/components/schemas/TagGroup'
+          description: >-
+            INVESTOR_STATUS and ONBOARDING_STATUS are always present, which
+            is what minItems 2 enforces. LINKED_BANK_ACCOUNT,
+            INVESTOR_DETAILS, NOMINEE_INFORMATION, VKYC_TERMS and
+            PAYMENT_OPTION appear as the chain resolves them, and
+            ONBOARDING_STATUS repeats, one group per stage. The deposit's
+            economics are NOT here — DEPOSIT_INFORMATION is item level.
+
+    Quote:
+      type: object
+      additionalProperties: false
+      required: [id, price, breakup, ttl]
+      properties:
+        id: { type: string }
+        price:
+          $ref: '#/components/schemas/Price'
+        breakup:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            additionalProperties: false
+            required: [item, title, price]
+            properties:
+              item:
+                type: object
+                additionalProperties: false
+                properties:
+                  id:              { type: string }
+                  fulfillment_ids: { type: array, items: { type: string } }
+              title:
+                type: string
+                enum: [PRINCIPAL, INTEREST_ACCRUED, PREMATURE_WITHDRAWAL_PENALTY, TDS, NET_PAYOUT]
+              price:
+                $ref: '#/components/schemas/Price'
+          description: >-
+            For a booking there is exactly one line, PRINCIPAL, equal to
+            quote.price. Interest and maturity are FORECASTS and live in the
+            MATURITY_PROJECTION tag, never here — putting them in breakup would
+            break the invariant that the lines sum to the price.
+        ttl:
+          type: string
+          example: PT15M
+          description: >-
+            MANDATORY. How long this rate is held. A /confirm arriving after it
+            elapses is rejected with 832031, and the buyer app must re-run
+            /confirm — not retry /confirm.
+
+    Price:
+      type: object
+      additionalProperties: false
+      required: [currency, value]
+      properties:
+        currency: { type: string, enum: [INR] }
+        value:    { type: string }
+
+    CancellationTerm:
+      type: object
+      additionalProperties: false
+      required: [fulfillment_state]
+      properties:
+        fulfillment_state:
+          type: object
+          additionalProperties: false
+          required: [descriptor]
+          properties:
+            descriptor:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+                  enum: [PENDING, INITIATED, ACTIVE, MATURED, CLOSED_PREMATURE, FAILED, CANCELLED]
+        reason_required: { type: boolean }
+        cancellation_fee:
+          type: object
+          additionalProperties: false
+          properties:
+            percentage: { type: string }
+            amount:
+              $ref: '#/components/schemas/Price'
+
+    RefundTerm:
+      type: object
+      additionalProperties: false
+      required: [fulfillment_state, refund_eligible]
+      properties:
+        fulfillment_state:
+          type: object
+          additionalProperties: false
+          required: [descriptor]
+          properties:
+            descriptor:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+                  enum: [PENDING, INITIATED, ACTIVE, MATURED, CLOSED_PREMATURE, FAILED, CANCELLED]
+        refund_eligible: { type: boolean }
+        refund_within:
+          type: object
+          additionalProperties: false
+          properties:
+            duration: { type: string, example: P3D }
+        refund_amount:
+          $ref: '#/components/schemas/Price'
+
+    XInput:
+      type: object
+      additionalProperties: false
+      required: [required]
+      description: >-
+        The chain driver. `required` is the gate on /confirm; a form may still be
+        present when required is false, and that means the step is OPTIONAL.
+      properties:
+        required:
+          type: boolean
+          description: >-
+            true — the form must be completed before /confirm.
+            false — /confirm is legal now, whether or not a form is also offered.
+        head:
+          type: object
+          additionalProperties: false
+          required: [index, headings]
+          description: Absent on a terminal response.
+          properties:
+            index:
+              type: object
+              additionalProperties: false
+              required: [min, cur, max]
+              properties:
+                min: { type: integer, enum: [0] }
+                cur: { type: integer, description: Current step, 0-based. }
+                max: { type: integer, description: Last step index. Declares the chain length up front. }
+            headings:
+              type: array
+              minItems: 1
+              items:
+                type: string
+                enum: [ENTITY_KYC, KYC, INVESTOR_DETAILS, FATCA_CRS, NOMINEE, BANK_LINKAGE, VKYC]
+              description: >-
+                One heading per step; length must equal max + 1. Ordered as the
+                chain runs, and every value here has a matching
+                ONBOARDING_STATUS.STAGE — a form the issuer can put on screen
+                must be a stage the issuer can report. ETB_CHECK is a stage but
+                never a heading: it is a lookup, not a form.
+        form:
+          type: object
+          additionalProperties: false
+          required: [id]
+          properties:
+            id: { type: string }
+            url:
+              type: string
+              format: uri
+              description: Absent on a terminal response.
+            mime_type:
+              type: string
+              enum: [text/html, application/html]
+              description: >-
+                text/html — the buyer app submits inline and gets a
+                submission_id synchronously.
+                application/html — a browser REDIRECT; the outcome returns both
+                on the browser callback and on an unsolicited /on_status, and
+                the BAP must trust the latter.
+        form_response:
+          type: object
+          additionalProperties: false
+          properties:
+            status:
+              type: string
+              enum: [SUBMITTED, SUCCESS, FAILED]
+            submission_id: { type: string }
+
+    TagGroup:
+      type: object
+      additionalProperties: false
+      required: [descriptor, list]
+      properties:
+        display:    { type: boolean, default: false }
+        descriptor: { $ref: '#/components/schemas/Descriptor' }
+        list:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Tag'
+
+    Tag:
+      type: object
+      additionalProperties: false
+      required: [descriptor, value]
+      properties:
+        descriptor: { $ref: '#/components/schemas/Descriptor' }
+        value:      { type: string }
+        display:    { type: boolean }
+
+    Descriptor:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string }
+        code: { type: string }
+
+    Error:
+      type: object
+      additionalProperties: false
+      properties:
+        code:    { type: string }
+        message: { type: string }
+
+    Ack:
+      type: object
+      properties:
+        message:
+          type: object
+          properties:
+            ack:
+              type: object
+              properties:
+                status: { type: string, enum: [ACK, NACK] }
+        error:
+          $ref: '#/components/schemas/Error'
+
+  x-ondc-fis15:
+
+    shapes:
+      description: >-
+        Four structurally distinct responses. Which one arrives is decided
+        entirely by the seller.
+      list:
+        - id: 1
+          name: Opening response
+          xinput.required: true
+          head.index: '{min:0, cur:0, max:N}'
+          quote: Indicative, echoed from /on_select
+          carries: INVESTOR_STATUS, DEPOSIT_INFORMATION, the first form
+        - id: 2
+          name: Chain progression
+          xinput.required: true
+          head.index: cur advances by 1
+          quote: Indicative, unchanged
+          carries: The next form; the completed stage flips to SUCCESSFUL in ONBOARDING_STATUS
+        - id: 3
+          name: Terminal
+          xinput.required: false
+          head.index: absent
+          quote: BINDING, restated with a fresh ttl
+          carries: >-
+            order.status CREATED, form_response.status SUCCESS, no form url,
+            cancellation_terms, refund_terms, PAYMENT_OPTION groups, plus
+            everything the chain resolved
+        - id: 4
+          name: ETB fast path
+          xinput.required: false
+          head.index: present, but only for optional steps
+          quote: BINDING on arrival — this response is terminal
+          carries: >-
+            ETB_CONFIRMED, existing accounts as repeated LINKED_BANK_ACCOUNT
+            groups, VKYC_REQUIRED false, PAYMENT_OPTION groups
+
+    tag-groups:
+
+      INVESTOR_STATUS:
+        level: fulfillment
+        required: mandatory
+        list:
+          ETB_NTB_STATUS:
+            required: mandatory
+            enum: [ETB_CHECK_PENDING, ETB_CONFIRMED, NTB_CONFIRMED]
+            description: >-
+              ETB_CHECK_PENDING means the core-banking lookup is asynchronous.
+              The verdict then arrives as an UNSOLICITED /on_status; the buyer
+              app must wait for it rather than re-polling /init.
+          ETB_CHECK_AS_ON:              { required: mandatory, type: datetime }
+          INVESTOR_CATEGORY:
+            required: mandatory
+            enum: [INDIVIDUAL, JOINT, MINOR, HUF, NRI, CORPORATE]
+            description: >-
+              WHO IS DEPOSITING — the entity type, and the field that decides
+              which onboarding stages apply. The six values are the BRD's six
+              investor entity types.
+
+              THE ISSUER DETERMINES IT, which is why it appears here and not in
+              anything the buyer app sends. v0.2.0 removed it from /init on the
+              reasoning that the PAN answers it; that is true for HUF and
+              CORPORATE, whose fourth PAN character is H, and C or F. It is NOT
+              true for the rest: an individual, a minor, a joint primary holder
+              and an NRI all carry a fourth character of P, and only the KYC
+              record separates them. Until it does, an issuer reports INDIVIDUAL
+              and corrects it on a later round if the record says otherwise —
+              the same provisionality CATEGORY_BASIS declares for
+              DEPOSITOR_CATEGORY.
+
+              /confirm echoes this value back as part of the signed statement,
+              and a value the issuer did not state is 832042.
+          DEPOSITOR_CATEGORY:
+            required: conditional
+            enum: [GENERAL, SENIOR_CITIZEN, SUPER_SENIOR_CITIZEN, STAFF, NRE, NRO]
+            description: >-
+              The category the issuer DETERMINED, which is what the rate and the
+              TDS estimate are computed at. Mandatory once CATEGORY_BASIS is not
+              CLAIMED. Compare it against the claim sent at /select — if they
+              differ, the /on_select quote no longer applies.
+          CATEGORY_BASIS:
+            required: mandatory
+            enum: [CLAIMED, VERIFIED_ETB, VERIFIED_KYC]
+            description: >-
+              ADDED IN v0.2.0, and the field that says how much to trust every
+              figure in MATURITY_PROJECTION.
+
+              VERIFIED_ETB — the core-banking lookup on the PAN returned a date
+              of birth. Category confirmed at round 1; the projection and the
+              TDS estimate are firm.
+
+              VERIFIED_KYC — an NTB investor whose Aadhaar e-KYC has completed.
+              Confirmed from that round on.
+
+              CLAIMED — nothing has confirmed it yet. A PAN carries no date of
+              birth, so for an NTB investor at round 1 the /select claim is all
+              the issuer has. The projection is computed at the claimed category
+              and the buyer app MUST present it as provisional.
+          EXISTING_RELATIONSHIP_SINCE:  { required: optional,  type: date, description: ETB only. }
+
+      DEPOSIT_INFORMATION:
+        level: item
+        required: mandatory
+        cardinality: once
+        description: >-
+          THE WHOLE DEPOSIT, IN ONE GROUP. Replaces the DEPOSIT_TERMS and
+          MATURITY_PROJECTION pair in v0.2.0, matching /confirm — which echoes
+          this group back verbatim, so the two calls now have the same shape and
+          a diff is a field-by-field comparison rather than a reshaping exercise.
+
+          Indicative mid-chain, binding on the terminal round. The figures rest
+          on CATEGORY_BASIS in INVESTOR_STATUS: while that says CLAIMED, so is
+          everything here.
+
+          The depositor category is NOT in this group — it is an attribute of
+          the investor and sits in INVESTOR_STATUS on the fulfillment.
+        list:
+          PRINCIPAL:
+            required: mandatory
+            type: decimal
+            description: Echoes items[].quantity.selected.measure.value.
+          TENURE_DAYS:
+            required: mandatory
+            type: integer
+            description: >-
+              The tenure in days, resolved from the ISO duration. Days are what
+              the rate card is keyed on.
+          INTEREST_RATE:
+            required: mandatory
+            type: decimal
+            description: >-
+              The rate applied, % p.a. — the card cell plus any category uplift
+              plus the payout-frequency adjustment.
+          ANNUALISED_YIELD:
+            required: mandatory
+            type: decimal
+            description: >-
+              Effective yield p.a. Equal to INTEREST_RATE when PAYOUT_FREQUENCY
+              is not CUMULATIVE, because nothing compounds.
+          PAYOUT_FREQUENCY:
+            required: mandatory
+            enum: [CUMULATIVE, MONTHLY, QUARTERLY, HALF_YEARLY, ANNUAL]
+            description: >-
+              THE BRANCH KEY. CUMULATIVE means MATURITY_AMOUNT is principal plus
+              interest, NET_MATURITY_AMOUNT is present and the per-payout fields
+              are absent. Anything else inverts all three.
+          COMPOUNDING_FREQUENCY:
+            required: mandatory
+            type: duration
+            description: >-
+              ISO 8601. P0D whenever PAYOUT_FREQUENCY is not CUMULATIVE —
+              interest that is paid out does not compound.
+          MATURITY_INSTRUCTION:
+            required: mandatory
+            enum: [CREDIT_TO_BANK, RENEW_PRINCIPAL, RENEW_PRINCIPAL_AND_INTEREST]
+            description: >-
+              RENEW_PRINCIPAL_AND_INTEREST is only meaningful on a CUMULATIVE
+              deposit. On a periodic one the interest has already been paid out,
+              so there is none left to renew.
+          MATURITY_AMOUNT:
+            required: mandatory
+            type: decimal
+            description: >-
+              CUMULATIVE — principal plus compounded interest. Otherwise the
+              PRINCIPAL ALONE. Not a projection of what a renewal would be worth.
+          TOTAL_INTEREST:
+            required: mandatory
+            type: decimal
+            description: Gross interest over the full tenure, before tax.
+          INTEREST_PER_PAYOUT:
+            required: conditional
+            type: decimal
+            description: Mandatory when PAYOUT_FREQUENCY is not CUMULATIVE.
+          PAYOUT_COUNT:
+            required: conditional
+            type: integer
+            description: >-
+              Mandatory when PAYOUT_FREQUENCY is not CUMULATIVE. Full payout
+              periods in the tenure.
+          FINAL_STUB_INTEREST:
+            required: conditional
+            type: decimal
+            description: >-
+              Mandatory when PAYOUT_FREQUENCY is not CUMULATIVE. PAYOUT_COUNT x
+              INTEREST_PER_PAYOUT plus this must equal TOTAL_INTEREST, exactly.
+          TDS_ESTIMATED:
+            required: mandatory
+            type: decimal
+            description: >-
+              FIRST APPEARS HERE — /on_select is gross-only because it does not
+              know the investor. Computed against the investor's actual holdings
+              with this bank. Legitimately 0 only when annual accrual falls
+              below the s.194A threshold; on a deposit large enough to breach
+              it, a 0 is an error.
+          NET_MATURITY_AMOUNT:
+            required: conditional
+            type: decimal
+            description: >-
+              Mandatory when PAYOUT_FREQUENCY is CUMULATIVE — MATURITY_AMOUNT
+              less TDS_ESTIMATED. Omitted on a periodic deposit, where interest
+              arrived net of TDS along the way and the principal returns whole.
+          PROJECTION_BASIS:
+            required: optional
+            description: >-
+              The assumptions behind the figures, in words. Must describe THIS
+              deposit.
+
+      INVESTOR_DETAILS:
+        level: fulfillment
+        required: conditional
+        cardinality: once — the same group, growing as stages complete
+        description: >-
+          ADDED IN v0.2.0. DISPLAY-SAFE SUMMARIES of what the issuer's form
+          system has collected, so the buyer app can render a confirmation
+          screen. Absent on the opening round; fields appear one at a time as
+          their source stage flips to SUCCESSFUL in ONBOARDING_STATUS, and once
+          present a field never disappears.
+
+          This is the one place form content reaches the buyer app, and it
+          reaches it MASKED. The forms render on the issuer's interface,
+          pre-filled from the Aadhaar or PAN record, so without this group the
+          buyer app cannot show the investor what it is about to commit them
+          to. It carries enough to confirm identity and no more — the raw values
+          stay in the issuer's system.
+
+          Send a field only when its stage has succeeded. A masked value is not
+          a placeholder for a value the issuer does not yet hold.
+        list:
+          NAME_AS_PER_PAN:
+            required: conditional
+            description: >-
+              From the KYC stage. Unmasked, because a confirmation screen that
+              hides the investor's own legal name confirms nothing — and the
+              buyer app may not otherwise hold the name exactly as the issuer
+              has it.
+          DOB_YEAR:
+            required: conditional
+            type: integer
+            description: >-
+              From the KYC stage. Year only. Present because it is the evidence
+              behind DEPOSITOR_CATEGORY — an investor told they are being
+              priced as a senior citizen can see why. Day and month add nothing
+              to that and are not sent.
+          ADDRESS_CITY:
+            required: conditional
+            description: From the INVESTOR_DETAILS stage.
+          ADDRESS_STATE:
+            required: conditional
+            description: From the INVESTOR_DETAILS stage.
+          ADDRESS_PINCODE:
+            required: conditional
+            description: >-
+              From the INVESTOR_DETAILS stage. City, state and PIN are enough
+              for the investor to recognise their own address; the street lines
+              are not sent.
+          EMAIL_MASKED:
+            required: conditional
+            description: 'From the INVESTOR_DETAILS stage. e.g. r****a@gmail.com'
+          MOBILE_MASKED:
+            required: conditional
+            description: 'From the INVESTOR_DETAILS stage. e.g. ******3210'
+          OCCUPATION:
+            required: optional
+            description: From the INVESTOR_DETAILS stage. The declared category, not free text.
+          INCOME_BAND:
+            required: optional
+            description: >-
+              From the INVESTOR_DETAILS stage. A band, never an exact figure —
+              the buyer app has no use for the precision and no business
+              holding it.
+          TAX_RESIDENCY:
+            required: conditional
+            enum: [RESIDENT_INDIA, NON_RESIDENT]
+            description: >-
+              From the FATCA_CRS stage. The self-certification outcome, not the
+              certificate.
+
+      ONBOARDING_STATUS:
+        level: fulfillment
+        required: mandatory
+        cardinality: REPEATED — one group per stage
+        description: >-
+          Implements the BRD's per-stage mode-and-status requirement, and is
+          what the buyer app renders on the confirmation screen.
+        list:
+          STAGE:
+            required: mandatory
+            enum: [ETB_CHECK, ENTITY_KYC, KYC, INVESTOR_DETAILS, FATCA_CRS, NOMINEE, BANK_LINKAGE, VKYC]
+            description: >-
+              ENTITY_KYC WAS ADDED IN THIS REVISION. It was already a legal
+              xinput heading, so an issuer could ISSUE a non-individual's
+              entity-KYC form and then had no way to REPORT the stage — the
+              buyer app's progress indicator would show a step that never
+              resolved. Mandatory as a stage whenever INVESTOR_CATEGORY is HUF
+              or CORPORATE, which are the entity types the BRD gives an
+              entity-level KYC set.
+
+              The order here is the chain order from
+              FIS15_init_API.yaml rounds.chain, and it matches the STAGE enum in
+              /on_status exactly. The two were previously in different orders,
+              which meant nothing but read as though it did.
+          MODE:       { required: conditional, description: Mandatory once the stage has started. }
+          STATUS:     { required: mandatory, enum: [PENDING, INITIATED, IN_PROGRESS, SUCCESSFUL, FAILED] }
+          UPDATED_AT: { required: mandatory, type: datetime }
+          REASON:     { required: conditional, description: Mandatory when STATUS is FAILED. }
+
+      LINKED_BANK_ACCOUNT:
+        level: fulfillment
+        required: conditional
+        cardinality: REPEATED when offering; single when confirming
+        description: >-
+          Offered as repeated groups on the ETB path, or as a single confirmed
+          group once the bank-linkage form resolves. The buyer app echoes ONLY
+          the IDENTIFIER at /confirm — account numbers never travel back.
+        list:
+          IDENTIFIER:            { required: mandatory, description: Opaque token. The only field ever echoed back. }
+          MASKED_ACCOUNT_NUMBER: { required: mandatory }
+          ACCOUNT_HOLDER_NAME:   { required: mandatory }
+          ACCOUNT_TYPE:          { required: mandatory, enum: [SAVINGS, CURRENT, NRE, NRO] }
+          BANK_NAME:             { required: mandatory }
+          IFSC:                  { required: mandatory }
+          VERIFICATION_METHOD:   { required: mandatory, enum: [UPI_PENNY_DROP, ACCOUNT_IFSC, PRE_VERIFIED] }
+          VERIFICATION_STATUS:   { required: mandatory, enum: [PENDING, SUCCESSFUL, FAILED] }
+          ACCOUNT_ROLE:          { required: mandatory, enum: [FUNDING, PAYOUT, BOTH] }
+
+      NOMINEE_INFORMATION:
+        level: fulfillment
+        required: conditional
+        description: Present once the nominee step has been completed OR declined.
+        list:
+          NOMINATION_OPTED:               { required: mandatory, enum: ['true', 'false'] }
+          NOMINEE_COUNT:                  { required: conditional, type: integer }
+          NOMINEE_NAME_MASKED:            { required: optional }
+          NOMINEE_RELATIONSHIP:           { required: optional }
+          ALLOCATION_PERCENTAGE:          { required: optional, type: decimal }
+          NO_NOMINATION_DECLARATION_REF:  { required: conditional, description: Mandatory when NOMINATION_OPTED is false. }
+
+      VKYC_TERMS:
+        level: fulfillment
+        required: mandatory
+        description: Binding here, unlike the indicative copy in the catalog.
+        list:
+          VKYC_REQUIRED:   { required: mandatory, enum: ['true', 'false'] }
+          VKYC_SEQUENCING: { required: mandatory, enum: [PRE_PAYMENT, POST_PAYMENT, NOT_REQUIRED] }
+          VKYC_SLA:        { required: conditional, type: duration, description: Mandatory when sequencing is POST_PAYMENT. }
+
+      PAYMENT_OPTION:
+        level: fulfillment
+        required: conditional
+        cardinality: REPEATED — one group per rail the issuer accepts
+        description: >-
+          ADDED IN v0.2.0. Mandatory on the TERMINAL response, absent
+          mid-chain. Declares which rails this issuer will accept for THIS
+          amount, so the buyer app can present a choice at /confirm that cannot
+          fail. Without it, rail selection is a guess that 832029 corrects
+          after the investor has already committed.
+        list:
+          MODE:
+            required: mandatory
+            enum: [NETBANKING, UPI, IMPS, NEFT, RTGS]
+          AUTH:
+            required: conditional
+            enum: [URI, COLLECT]
+            description: Mandatory when MODE is UPI; not permitted otherwise.
+          MIN_AMOUNT:
+            required: conditional
+            type: decimal
+            description: >-
+              Rail floor. Mandatory for RTGS, where Rs 2,00,000 is regulatory
+              rather than a channel limit.
+          MAX_AMOUNT:
+            required: conditional
+            type: decimal
+            description: >-
+              Rail ceiling for this issuer and channel. Absent means no
+              practical ceiling applies at this amount.
+          AVAILABILITY:
+            required: optional
+            enum: ['AVAILABLE', 'TEMPORARILY_UNAVAILABLE']
+            description: >-
+              Lets an issuer advertise a rail it supports but cannot currently
+              service, so the buyer app can grey it out rather than hide it.
+
+      BPP_TERMS:
+        level: order
+        required: mandatory
+        list:
+          STATIC_TERMS:     { required: mandatory, type: uri }
+          OFFLINE_CONTRACT: { required: mandatory, enum: ['true', 'false'] }
+
+    rules:
+      - TAG LEVELS ARE FIXED ACROSS THE JOURNEY. item carries the deposit's
+        economics under exactly two names. DEPOSIT_CONFIGURATION at /select and
+        /init, where the buyer app states what the investor chose.
+        DEPOSIT_INFORMATION from /on_init onward, where the issuer states the
+        resulting contract and /confirm echoes that statement back verbatim.
+        /on_select is the single exception and answers with MATURITY_PROJECTION
+        alone. Both names sit on the item, in continuation of the catalog's
+        RATE_CARD_ENTRY and PAYOUT_OPTION. THE NAME STATES THE AUTHORITY — a
+        CONFIGURATION is asked for, INFORMATION is stated. There is no
+        DEPOSIT_TERMS anywhere in FIS15. fulfillment carries the investor and
+        the servicing. payment carries money movement. order carries only
+        BAP_TERMS and BPP_TERMS, and nothing else, ever.
+      - Dates live in stops, never in a tag. stops[].time carries the tenure
+        before booking and the real VALUE_DATE and MATURITY_DATE after it.
+      - CATEGORY_BASIS gates how firm the projection is. VERIFIED_ETB means the
+        PAN lookup dated the investor and every figure is firm at round 1.
+        CLAIMED means it did not — a PAN carries no date of birth, so for an NTB
+        investor the figures stand on the /select claim until Aadhaar e-KYC
+        completes, and the buyer app must label them provisional.
+      - When the determined DEPOSITOR_CATEGORY differs from the claim sent at
+        /select, the /on_select quote no longer applies. Say so on the round
+        that determines it, not at the terminal one.
+      - INVESTOR_DETAILS carries MASKED values only, and only for stages that
+        have SUCCEEDED. It exists so the buyer app can render a confirmation
+        screen; it is not a channel for form content.
+      - The price is NOT re-derived here. Mid-chain responses echo the
+        /on_select quote id and value unchanged; only the TERMINAL response may
+        restate it, and then only with a fresh ttl.
+      - quote.ttl is MANDATORY on the terminal response. That ttl, not the
+        /on_select one, is the clock /confirm must beat.
+      - order.status appears on the terminal response only, always CREATED, and
+        there is no order.id — the issuer mints it at /on_confirm.
+      - PAYMENT_OPTION is mandatory on the terminal response. A terminal
+        /on_init with no rail advertised leaves the buyer app guessing, and the
+        guess fails at /on_confirm with 832029.
+      - No payments object is returned at /on_init and no payment URL exists
+        anywhere in this call. The rail is chosen at /confirm and the
+        instruction issued at /on_confirm.
+      - xinput.required is the gate on /confirm, not the presence of a form. A
+        response may carry required:false together with a form URL; that is an
+        optional step.
+      - headings length must equal head.index.max + 1, and cur must never
+        exceed max. The BAP renders its progress indicator from these.
+      - EVERY xinput HEADING MUST BE A REPORTABLE STAGE. The headings enum and
+        the ONBOARDING_STATUS.STAGE enum carry the same values, less ETB_CHECK,
+        which is a lookup rather than a form. An issuer that can show a step it
+        cannot report leaves the buyer app with a progress bar that never fills.
+      - ENTITY_KYC is mandatory when INVESTOR_CATEGORY is HUF or CORPORATE. The
+        entity's own KYC — the HUF declaration, or the certificate of
+        incorporation, MOA/AOA, board resolution and beneficial-ownership
+        declaration — is a stage in its own right, separate from the KYC of the
+        Karta or the authorised signatory, which is the KYC stage.
+      - INVESTOR_CATEGORY is the issuer's to determine and the buyer app's to
+        echo at /confirm. It is mandatory on every response, including the
+        opening one, where it may still be provisional for a PAN whose fourth
+        character is P.
+      - Offer as tags, accept as identifier. Bank accounts are offered here
+        with masked numbers and echoed back at /confirm by IDENTIFIER alone.
+      - DEPOSITOR_CATEGORY verified during KYC must match the claim priced at
+        /on_select. A mismatch is 832014 and needs a fresh /select, not a retry.
+      - ETB_CHECK_PENDING obliges the BAP to WAIT for an unsolicited
+        /on_status. Re-sending /init to poll is a protocol error.
+      - cancellation_terms is mandatory on the terminal response, and
+        refund_terms is mandatory when VKYC_SEQUENCING is POST_PAYMENT.
+      - Rejections return context plus error, with no message.order. Do not
+        send a partial order alongside an error.
+
+    decisions:
+      investor-details-returned:
+        change: >-
+          New INVESTOR_DETAILS group returns display-safe summaries of the
+          collected form content, accumulating across the chain.
+        why: >-
+          The forms render on the ISSUER's interface, pre-filled from the
+          Aadhaar or PAN record, so the buyer app never saw the values it was
+          about to ask an investor to commit to. A confirmation screen was not
+          buildable. Masked values close that gap without putting addresses,
+          parents' names and exact incomes on the network for a screen that only
+          needs the investor to say "yes, that is me".
+      investor-category-returned:
+        change: >-
+          INVESTOR_CATEGORY was added to INVESTOR_STATUS, with the BRD's six
+          entity types as its enum.
+        why: >-
+          v0.2.0 removed the field from /init with the stated reasoning that the
+          issuer "determines both INVESTOR_CATEGORY and DEPOSITOR_CATEGORY and
+          returns them on /on_init" — and then returned only DEPOSITOR_CATEGORY.
+          Meanwhile /confirm kept the field as MANDATORY. The buyer app was
+          therefore obliged to send, in the payload it signs, a value no issuer
+          response ever gave it; the reference examples papered over this by
+          inventing INDIVIDUAL, a value that had no enum anywhere in the spec.
+          This is the promised half of that decision, not a new idea.
+        cost: >-
+          The field is mandatory from the opening response, but for a fourth
+          PAN character of P the issuer cannot yet distinguish an individual from
+          a minor, a joint primary holder or an NRI. It reports INDIVIDUAL and
+          corrects on a later round. That is the same provisionality
+          CATEGORY_BASIS makes explicit for DEPOSITOR_CATEGORY, and a case could
+          be made for an equivalent basis field here — logged rather than built,
+          because two basis fields on one group is a lot of ceremony for a
+          correction that only affects which forms get issued.
+
+      entity-kyc-reportable:
+        change: >-
+          ENTITY_KYC added to ONBOARDING_STATUS.STAGE, and both the STAGE and
+          the xinput headings enums reordered to the chain order so they read as
+          the one list they are.
+        why: >-
+          ENTITY_KYC was already a legal xinput heading, so the spec permitted an
+          issuer to put a non-individual's entity-KYC form on screen and then
+          gave it nothing to report the outcome with. The BRD puts all six entity
+          types in MVP scope and gives HUF and Corporate an entity-level KYC set
+          distinct from the signatory's, so this is a stage that will be used the
+          moment a non-individual books.
+
+      category-basis:
+        change: >-
+          New CATEGORY_BASIS field on INVESTOR_STATUS, and DEPOSITOR_CATEGORY
+          returned alongside it.
+        why: >-
+          v0.2.0 moved category determination from the buyer app to the issuer,
+          on the reasoning that the PAN answers it. It only half does — the
+          fourth character gives the holder type, but no PAN carries a date of
+          birth. An ETB lookup supplies one and an NTB investor's does not
+          exist until e-KYC. Without this field the buyer app cannot tell a firm
+          rate from a provisional one, and would present both identically.
+      terminal-binding-quote:
+        change: >-
+          The binding quote moved from round 1 to the TERMINAL round in v0.2.0.
+          Mid-chain the /on_select quote is echoed unchanged.
+        why: >-
+          The onboarding chain now sits between pricing and commitment, and it
+          can take ten minutes or more. Binding a rate at round 1 would make a
+          daily-repricing issuer honour a price across an unbounded KYC
+          journey; re-deriving it mid-chain would move the number under the
+          investor's feet. Restating it once, at the end, does neither.
+      payment-option-advertised:
+        change: >-
+          New PAYMENT_OPTION tag group on the terminal response, replacing the
+          payments[] options block that /on_init carried in v0.1.0.
+        why: >-
+          Rail selection moved to /confirm, so there is no longer an issuer
+          round trip between proposal and commitment in which to substitute a
+          rail. The ceilings therefore have to be published BEFORE the choice
+          is made. This also closes the rail-ceilings open point that v0.1.0
+          left standing against /on_search.
+      status-only-on-terminal:
+        change: order.status is absent mid-chain and CREATED on the terminal response.
+        why: >-
+          A draft order does not exist until the chain closes. Carrying CREATED
+          from round 1 would suggest there is something to commit to when there
+          is not.
+      terms-and-projection-merged:
+        change: >-
+          DEPOSIT_TERMS and MATURITY_PROJECTION were merged into a single
+          DEPOSIT_INFORMATION group at item level, matching /confirm.
+          PAYOUT_BASIS was dropped — PAYOUT_FREQUENCY already says whether
+          interest compounds or is paid out.
+        why: >-
+          /confirm echoes this group back verbatim as the signed statement, and
+          the two calls carrying the same facts in different shapes made that
+          echo a reshaping exercise rather than a comparison. Merging also ends
+          the split where the rate lived in one group and the number it produced
+          lived in another, on the same item.
+        cost: >-
+          None remaining. /on_status was brought onto the same group in the
+          same version, so a booked deposit and a proposed one are reported in
+          one shape and a buyer app reads the economics from one place on
+          every issuer response.
+      error-envelope-exclusive:
+        change: oneOf enforcing message XOR error.
+        why: >-
+          A partial order alongside an error is ambiguous — the buyer app
+          cannot tell whether to render it.
+
+    open-points:
+      repricing-on-terminal:
+        status: unresolved
+        question: >-
+          The terminal round restates the quote. Nothing says whether the
+          issuer may restate it at a DIFFERENT value when the /on_select ttl
+          has lapsed mid-chain — which for a long KYC journey it often will.
+        recommendation: >-
+          Permit it only when the /on_select ttl has expired, and require a
+          REPRICE_ADVICE tag carrying the old and new rate, so the buyer app
+          can show the investor what changed and why before they commit.
+      value-date-unknown:
+        status: unresolved
+        question: >-
+          VALUE_DATE and MATURITY_DATE are absent until /on_confirm, so the
+          review screen cannot show a maturity date — the thing investors most
+          want to see before committing.
+        recommendation: >-
+          Add INDICATIVE_VALUE_DATE and INDICATIVE_MATURITY_DATE as stop
+          labels from /on_select onward, clearly marked as subject to the
+          actual credit date. Dates belong in stops, not in a tag.
+      payment-option-staleness:
+        status: unresolved
+        question: >-
+          PAYMENT_OPTION is published at the terminal round and consumed at
+          /confirm. A rail that goes down in between is still on the
+          investor's screen.
+        recommendation: >-
+          Bind PAYMENT_OPTION to the same ttl as the binding quote, and let
+          /on_confirm substitute with PAYMENT_ADVICE as the backstop.
+
+    source:
+      derived-from:
+        - FD_ONDC_FIS15_API_Spec.md (sections 6, 7, 8)
+        - FD_ONDC_BRD_Final.docx v1.0, Flow > Investor onboarding
+        - FIS15_on_select_API.yaml v0.1.0 (this call is its direct successor)
+      reference-implementation:
+        repo: ONDC-FIS-Specifications-release-FIS14-2.1.0
+        files:
+          - api/components/schemas/xinput.yaml
+          - api/components/docs/stage-onboarding.md
+      beckn-core: 1.3.0

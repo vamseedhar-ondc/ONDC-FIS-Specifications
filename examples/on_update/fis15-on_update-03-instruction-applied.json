@@ -1,0 +1,239 @@
+{
+  "context": {
+    "location": {
+      "country": {
+        "code": "IND"
+      },
+      "city": {
+        "code": "*"
+      }
+    },
+    "domain": "ONDC:FIS15",
+    "action": "on_update",
+    "version": "0.2.0",
+    "bap_id": "api.buyerapp.com",
+    "bap_uri": "https://api.buyerapp.com/ondc",
+    "bpp_id": "api.icicibank.com",
+    "bpp_uri": "https://api.icicibank.com/ondc",
+    "transaction_id": "e9895269-e7a9-4003-9ebc-534413a6017b",
+    "message_id": "e40a7c95-1db6-4823-9f0e-52c8b6a17d43",
+    "timestamp": "2027-06-10T14:02:58.000Z",
+    "ttl": "PT10M"
+  },
+  "message": {
+    "order": {
+      "id": "FD-ICICI-20260902-004481",
+      "status": "ACTIVE",
+      "provider": {
+        "id": "icici_fd",
+        "descriptor": {
+          "name": "ICICI Bank"
+        }
+      },
+      "items": [
+        {
+          "id": "icici_fd_regular",
+          "descriptor": {
+            "name": "ICICI Bank Fixed Deposit",
+            "code": "DEPOSIT_PRODUCT"
+          },
+          "fulfillment_ids": [
+            "ff_dep_01"
+          ],
+          "quantity": {
+            "selected": {
+              "measure": {
+                "value": "500000",
+                "unit": "INR"
+              }
+            }
+          },
+          "tags": [
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Deposit Information",
+                "code": "DEPOSIT_INFORMATION"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "PRINCIPAL"
+                  },
+                  "value": "500000"
+                },
+                {
+                  "descriptor": {
+                    "code": "TENURE_DAYS"
+                  },
+                  "value": "400"
+                },
+                {
+                  "descriptor": {
+                    "code": "INTEREST_RATE"
+                  },
+                  "value": "6.25"
+                },
+                {
+                  "descriptor": {
+                    "code": "ANNUALISED_YIELD"
+                  },
+                  "value": "6.40"
+                },
+                {
+                  "descriptor": {
+                    "code": "PAYOUT_FREQUENCY"
+                  },
+                  "value": "CUMULATIVE"
+                },
+                {
+                  "descriptor": {
+                    "code": "COMPOUNDING_FREQUENCY"
+                  },
+                  "value": "P3M"
+                },
+                {
+                  "descriptor": {
+                    "code": "MATURITY_INSTRUCTION"
+                  },
+                  "value": "RENEW_PRINCIPAL_AND_INTEREST"
+                },
+                {
+                  "descriptor": {
+                    "code": "MATURITY_AMOUNT"
+                  },
+                  "value": "535163.15"
+                },
+                {
+                  "descriptor": {
+                    "code": "TOTAL_INTEREST"
+                  },
+                  "value": "35163.15"
+                },
+                {
+                  "descriptor": {
+                    "code": "TDS_ESTIMATED"
+                  },
+                  "value": "0.00"
+                },
+                {
+                  "descriptor": {
+                    "code": "NET_MATURITY_AMOUNT"
+                  },
+                  "value": "535163.15"
+                },
+                {
+                  "descriptor": {
+                    "code": "PROJECTION_BASIS"
+                  },
+                  "value": "First-year accrual of 31990.08 is below the s.194A threshold of 50000."
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "fulfillments": [
+        {
+          "id": "ff_dep_01",
+          "type": "DEPOSIT",
+          "state": {
+            "descriptor": {
+              "name": "Active",
+              "code": "ACTIVE"
+            }
+          },
+          "customer": {
+            "person": {
+              "id": "pan:abcpk1234f"
+            }
+          },
+          "stops": [
+            {
+              "time": {
+                "label": "VALUE_DATE",
+                "timestamp": "2026-09-02T00:00:00.000Z"
+              }
+            },
+            {
+              "time": {
+                "label": "MATURITY_DATE",
+                "timestamp": "2027-10-07T00:00:00.000Z"
+              }
+            }
+          ],
+          "tags": [
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Servicing Status",
+                "code": "SERVICING_STATUS"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "ACTION"
+                  },
+                  "value": "MATURITY_INSTRUCTION_UPDATE"
+                },
+                {
+                  "descriptor": {
+                    "code": "STATUS"
+                  },
+                  "value": "SUCCESSFUL"
+                },
+                {
+                  "descriptor": {
+                    "code": "REQUESTED_AT"
+                  },
+                  "value": "2027-06-10T14:02:55.000Z"
+                },
+                {
+                  "descriptor": {
+                    "code": "UPDATED_AT"
+                  },
+                  "value": "2027-06-10T14:02:58.000Z"
+                },
+                {
+                  "descriptor": {
+                    "code": "EFFECTIVE_FROM"
+                  },
+                  "value": "2027-10-07"
+                },
+                {
+                  "descriptor": {
+                    "code": "REFERENCE"
+                  },
+                  "value": "SRV-004481-0003"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "tags": [
+        {
+          "display": false,
+          "descriptor": {
+            "name": "BPP Terms of Engagement",
+            "code": "BPP_TERMS"
+          },
+          "list": [
+            {
+              "descriptor": {
+                "code": "STATIC_TERMS"
+              },
+              "value": "https://www.icicibank.com/legal/ondc:fis15/static_terms?v=0.1"
+            },
+            {
+              "descriptor": {
+                "code": "OFFLINE_CONTRACT"
+              },
+              "value": "true"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

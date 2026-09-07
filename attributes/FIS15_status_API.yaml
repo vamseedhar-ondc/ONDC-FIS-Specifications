@@ -1,0 +1,287 @@
+openapi: 3.0.0
+info:
+  title: ONDC FIS15 — Status API
+  description: >-
+    BAP → BPP order status request. The smallest call in FIS15: the message
+    carries an order id and nothing else.
+
+    It is a FALLBACK, not the primary mechanism. FIS15 is push-first — the
+    issuer sends unsolicited /on_status whenever something changes, and a
+    correctly implemented buyer app spends most of a deposit's life never
+    calling this. Reach for it when a push should have arrived and did not.
+
+    TWO CONSTRAINTS SHAPE EVERY USE. There is no order id until /on_confirm, so
+    nothing before that point is pollable — including an outstanding
+    ETB_CHECK_PENDING, which can only be waited on. And a deposit runs for
+    years, so polling frequency must follow the fulfillment state rather than a
+    fixed timer.
+
+    Domain code ONDC:FIS15 and error range 832001-832042 are requested from
+    ONDC and not yet allocated.
+  version: 0.2.0
+
+servers:
+  - url: https://api.icicibank.com/ondc
+    description: BPP (seller app) endpoint
+
+paths:
+  /status:
+    post:
+      summary: Ask for the current state of one order
+      description: >-
+        Returns an ACK/NACK synchronously; the order arrives on /on_status in
+        the same shape as an unsolicited push, so the buyer app needs only one
+        handler for both.
+      operationId: status
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusRequest'
+            examples:
+              S1_after_payment:
+                summary: 'Fallback — the payment push never arrived'
+                description: >-
+                  The browser returned from the payment page but no /on_status
+                  followed within the grace window. This is the archetypal
+                  legitimate use.
+                value:
+                  $ref: '../examples/status/fis15-status-01-poll-after-payment.json'
+
+              S2_active_deposit:
+                summary: 'Portfolio refresh on a live deposit'
+                description: >-
+                  Months later, reconciling a running deposit for the portfolio
+                  view. Same payload, different intent — note the timestamp is
+                  four months after the transaction_id was minted.
+                value:
+                  $ref: '../examples/status/fis15-status-02-poll-active-deposit.json'
+      responses:
+        default:
+          description: ACK / NACK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ack'
+
+components:
+  schemas:
+
+    StatusRequest:
+      type: object
+      additionalProperties: false
+      required: [context, message]
+      properties:
+        context:
+          allOf:
+            - $ref: '#/components/schemas/Context'
+            - type: object
+              required: [action, bpp_id, bpp_uri]
+              properties:
+                action:
+                  enum: [status]
+        message:
+          type: object
+          additionalProperties: false
+          required: [order_id]
+          description: >-
+            order_id and nothing else. There is no partial status request in
+            FIS15 — no way to ask only about the payment, or only about the
+            VKYC stage. /on_status returns the whole order every time.
+          properties:
+            order_id:
+              type: string
+              example: FD-ICICI-20260902-004481
+              description: >-
+                The id minted by the issuer at /on_confirm. An id the issuer
+                does not recognise, or one belonging to another investor, is
+                832033.
+
+    Context:
+      type: object
+      additionalProperties: false
+      required:
+        - location
+        - domain
+        - action
+        - version
+        - bap_id
+        - bap_uri
+        - bpp_id
+        - bpp_uri
+        - transaction_id
+        - message_id
+        - timestamp
+        - ttl
+      properties:
+        location:
+          type: object
+          additionalProperties: false
+          required: [country, city]
+          properties:
+            country:
+              type: object
+              properties:
+                code: { type: string, enum: [IND] }
+            city:
+              type: object
+              properties:
+                code: { type: string, enum: ['*'] }
+        domain:  { type: string, enum: [ONDC:FIS15] }
+        action:  { type: string, enum: [status] }
+        version: { type: string, example: 0.2.0 }
+        bap_id:  { type: string }
+        bap_uri: { type: string, format: uri }
+        bpp_id:  { type: string }
+        bpp_uri: { type: string, format: uri }
+        transaction_id:
+          type: string
+          format: uuid
+          description: >-
+            The booking journey's id, REUSED however long afterwards. A status
+            poll on a three-year deposit still carries the transaction_id minted
+            at the opening /init — so a buyer app must not treat a
+            transaction as closed at /on_confirm, and must retain the mapping
+            from order id to transaction id for the life of the deposit.
+        message_id: { type: string, format: uuid, description: Fresh per poll. }
+        timestamp:  { type: string, format: date-time }
+        ttl:        { type: string, example: PT10M }
+
+    Ack:
+      type: object
+      properties:
+        message:
+          type: object
+          properties:
+            ack:
+              type: object
+              properties:
+                status: { type: string, enum: [ACK, NACK] }
+        error:
+          type: object
+          properties:
+            code:    { type: string }
+            message: { type: string }
+
+  x-ondc-fis15:
+
+    one-shape-only:
+      note: >-
+        Unlike every other call in FIS15, /status has a single payload shape.
+        The two examples are byte-identical apart from the order id, the
+        transaction id and the timestamp; they are included to show WHEN the
+        call is appropriate, not to show different structures.
+
+    polling-discipline:
+      description: >-
+        The push mechanism carries the load. These are the cases where a poll
+        is the right answer, and the cadence for each.
+      legitimate:
+        - trigger: A browser callback returned but no /on_status followed.
+          wait_first: 30 seconds
+          then: One poll. If still NOT-PAID, treat as pending and back off.
+          why: >-
+            The callback is a UX signal, the /on_status is authoritative, and
+            the two are not synchronous. Polling immediately races the push.
+        - trigger: The investor reopens the app mid-journey.
+          wait_first: none
+          then: One poll to rehydrate the view.
+        - trigger: A VKYC deadline is approaching and the buyer app needs to
+            refresh VKYC_DEADLINE for its countdown.
+          cadence: Hourly at most.
+        - trigger: Portfolio refresh on a running deposit.
+          cadence: Daily at most, and only for deposits the buyer app itself booked.
+        - trigger: Reconciliation after the buyer app was offline.
+          then: One poll per affected order, not a sweep of the whole book.
+      illegitimate:
+        - Polling in a loop while waiting for a payment outcome. The push will
+          arrive; a loop just moves the issuer's load onto the network.
+        - Polling to discover the ETB/NTB verdict. There is no order id yet, so
+          it is not even possible — ETB_CHECK_PENDING must be waited on.
+        - Polling a matured or closed deposit. Its state is terminal.
+        - Polling on a fixed timer regardless of fulfillment state. A PENDING
+          order and a three-year ACTIVE deposit do not warrant the same cadence.
+      by-state:
+        PENDING:          One poll 30s after a missed callback, then exponential back-off.
+        INITIATED:        Hourly while inside the VKYC window; the deadline is the only thing moving.
+        ACTIVE:           Daily at most. Nothing changes between payout dates.
+        MATURED:          Once, to collect the closure detail. Then stop.
+        CLOSED_PREMATURE: Once. Terminal.
+        FAILED:           Once, to collect the reason and the refund payment object. Terminal.
+        CANCELLED:        Do not poll. Terminal.
+
+    rules:
+      - message contains order_id and nothing else.
+      - No order id exists before /on_confirm, so no part of the discovery,
+        selection or initiation phase is pollable.
+      - /on_status returns the FULL order regardless of what prompted the poll.
+        There is no partial or field-scoped status request.
+      - A solicited /on_status and an unsolicited one are the same payload. Use
+        one handler; do not branch on whether a request preceded it.
+      - An unrecognised order id, or one belonging to a different investor, is
+        832033. Do not retry it.
+      - The transaction_id belongs to the whole deposit lifecycle, not just the
+        booking. Retain the order-id-to-transaction-id mapping for the life of
+        the deposit — a poll years later still needs it.
+
+    decisions:
+      no-field-scoped-status:
+        change: >-
+          message is capped at order_id, with no way to request a subset.
+        why: >-
+          A payment-only or VKYC-only variant is superficially attractive, but
+          it doubles the response shapes the buyer app must handle and creates
+          a class of bug where a partial refresh leaves stale fields beside
+          fresh ones. Returning the whole order every time is cheaper than that.
+      transaction-id-outlives-booking:
+        change: Documented explicitly on the transaction_id field.
+        why: >-
+          Implementations naturally treat a transaction as complete at
+          /on_confirm and discard the id. For FD that is wrong by years — the
+          same id threads every status poll and every servicing call until the
+          deposit closes. Discovering this after go-live means backfilling a
+          mapping nobody stored.
+
+    open-points:
+      poll-rate-limits:
+        status: unresolved
+        question: >-
+          The cadences above are guidance with nothing enforcing them. A buyer
+          app polling every ACTIVE deposit hourly is conformant today and would
+          be indistinguishable from an attack at scale.
+        recommendation: >-
+          Set network-level rate limits per BAP-BPP pair, and define the error a
+          throttled poll receives so buyer apps can back off correctly rather
+          than retry blindly.
+      bulk-status:
+        status: unresolved
+        question: >-
+          A buyer app reconciling after an outage must poll one order at a time.
+          For a book of ten thousand deposits that is ten thousand calls.
+        recommendation: >-
+          Either a bulk status action accepting an order id array, or a
+          CHANGES_FROM-style delta on the order side mirroring what
+          INCREMENTAL_PULL does for the catalog. The second fits the existing
+          idiom better.
+      no-poll-before-order:
+        status: acknowledged, no fix proposed
+        question: >-
+          ETB_CHECK_PENDING can leave a buyer app waiting with no way to check
+          progress, because no order id exists yet. If the push is lost the
+          journey stalls silently and the only recovery is to restart /init.
+        recommendation: >-
+          Bound it instead of making it pollable: require the issuer to resolve
+          ETB_CHECK_PENDING within a stated window and to push a failure if it
+          cannot. Adding a pre-order poll would mean inventing a second
+          correlation key, which is worse.
+
+    source:
+      derived-from:
+        - FD_ONDC_FIS15_API_Spec.md (section 9.1)
+        - FD_ONDC_FIS15_Schema.xlsx (API Fields, status row — 1 field)
+        - FIS14 api/components/examples/mutual-funds/status/status-request.json
+      chains-with:
+        - FIS15_on_confirm_API.yaml — mints the order id this call needs
+        - FIS15_on_status_API.yaml — answers it, in the same shape as a push
+      beckn-core: 1.3.0

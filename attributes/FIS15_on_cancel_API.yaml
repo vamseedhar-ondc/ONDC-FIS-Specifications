@@ -1,0 +1,1176 @@
+openapi: 3.0.0
+info:
+  title: ONDC FIS15 — On Cancel API
+  description: >-
+    BPP → BAP answer to a /cancel. Either the price of ending the deposit, or
+    the confirmation that it has ended, or a refusal.
+
+    THE QUOTE SHAPE CHANGES NOTHING. It is the issuer answering "what would this
+    cost", and it is the screen the BRD requires before the investor confirms.
+    order.status and the fulfillment state come back exactly as they were, and
+    the whole answer is a quote with a ttl plus a WITHDRAWAL_INFORMATION group
+    explaining how the figure was reached.
+
+    HOW THE FIGURE IS REACHED IS AS IMPORTANT AS THE FIGURE. An investor breaking
+    a deposit is not paying a fee — the interest is RECOMPUTED, at the card rate
+    for the tenure actually run rather than the rate they contracted, and then
+    penalised. Someone who sees only a net payout cannot tell a correct
+    computation from a wrong one, so WITHDRAWAL_INFORMATION carries the
+    contracted rate, the card rate that replaced it, the penalty applied and the
+    interest given up, and quote.breakup carries the money.
+
+    A PARTIAL WITHDRAWAL RETURNS TWO GROUPS ON THE ITEM. WITHDRAWAL_INFORMATION
+    describes what is leaving; DEPOSIT_INFORMATION describes the deposit that
+    remains, restated in full at its new principal. The order stays ACTIVE
+    throughout — it is the only cancellation scope where nothing terminates.
+
+    THE PAYOUT IS AN APPENDED LEDGER ENTRY, not a new order. type ON_FULFILLMENT
+    when a deposit paid out, REFUND when an unbooked order gave money back. The
+    collection entry keeps its PAID status, because it was paid, and the ledger
+    stays reconcilable in one direction.
+
+    Domain code ONDC:FIS15 and error range 832001-832042 are requested from
+    ONDC and not yet allocated.
+  version: 0.2.0
+
+servers:
+  - url: https://api.buyerapp.com/ondc
+    description: BAP (buyer app) callback endpoint
+
+paths:
+  /on_cancel:
+    post:
+      summary: Price the ending, or confirm it
+      description: >-
+        Returns an ACK/NACK synchronously. Which shape arrives is decided by the
+        cancellation_type the buyer app sent, never by issuer preference — a
+        QUOTE is always answered with a quote and an EXECUTE is always answered
+        with an outcome, so a buyer app knows before it sends which screen it is
+        about to render.
+      operationId: onCancel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnCancelRequest'
+            examples:
+              Y1_withdrawal_quote:
+                summary: 'Quote — 194 days into a 400-day deposit'
+                description: >-
+                  Contracted at 6.25%, but 194 days resolves to the 185-364 day
+                  card cell at 5.50%, less the 50 bps premature-withdrawal
+                  penalty, so interest is recomputed at 5.00%. The investor gets
+                  Rs 13,381.23 instead of the Rs 35,163.15 the full term would
+                  have paid, and INTEREST_FORGONE says so in one number. Nothing
+                  has changed — the order is still ACTIVE.
+                value:
+                  $ref: '../examples/on_cancel/fis15-on_cancel-01-withdrawal-quote.json'
+
+              Y2_withdrawal_executed:
+                summary: 'Executed — COMPLETED, not CANCELLED'
+                description: >-
+                  The fulfillment moves to CLOSED_PREMATURE and the order to
+                  COMPLETED, because the contract ended on terms the contract set
+                  out. An ON_FULFILLMENT payment is appended for the net payout
+                  and the closure advice arrives in documents[].
+                value:
+                  $ref: '../examples/on_cancel/fis15-on_cancel-02-withdrawal-executed.json'
+
+              Y3_partial_quote:
+                summary: 'Quote — Rs 50 lakh out of a Rs 3.5 crore quarterly-payout deposit'
+                description: >-
+                  The instructive case. Three quarterly payouts have already been
+                  made on the full principal, so the withdrawn portion has been
+                  OVERPAID: Rs 2,55,000 went out against an entitlement of
+                  Rs 2,05,684.93 at the recomputed rate. INTEREST_ACCRUED is
+                  therefore NEGATIVE and the payout is less than the amount
+                  asked for.
+                value:
+                  $ref: '../examples/on_cancel/fis15-on_cancel-03-partial-quote.json'
+
+              Y4_partial_executed:
+                summary: 'Executed — the deposit survives at Rs 3 crore'
+                description: >-
+                  order ACTIVE and fulfillment ACTIVE, unchanged. Two groups on
+                  the item: what left, and the continuing deposit restated at its
+                  new principal with the per-payout figures recomputed. Same
+                  rate, same maturity date.
+                value:
+                  $ref: '../examples/on_cancel/fis15-on_cancel-04-partial-executed.json'
+
+              Y5_order_cancelled:
+                summary: 'Executed / ORDER — an unpaid order, no money either way'
+                description: >-
+                  order CANCELLED, fulfillment CANCELLED, no payout and no
+                  refund, because nothing was ever collected. The payment entry
+                  stays FAILED, as it was.
+                value:
+                  $ref: '../examples/on_cancel/fis15-on_cancel-05-order-cancelled.json'
+
+              Y6_rejected:
+                summary: 'Refused — 832023, inside the lock-in'
+                description: >-
+                  A tax-saver deposit 400 days into a 1825-day lock-in. context
+                  plus error, no order.
+                value:
+                  $ref: '../examples/on_cancel/fis15-on_cancel-06-rejected-832023.json'
+      responses:
+        default:
+          description: ACK / NACK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ack'
+
+components:
+  schemas:
+
+    OnCancelRequest:
+      type: object
+      additionalProperties: false
+      required: [context]
+      oneOf:
+        - required: [message]
+          not: { required: [error] }
+        - required: [error]
+          not: { required: [message] }
+      description: message XOR error, as everywhere else in FIS15.
+      properties:
+        context:
+          allOf:
+            - $ref: '#/components/schemas/Context'
+            - type: object
+              required: [action, bpp_id, bpp_uri]
+              properties:
+                action:
+                  enum: [on_cancel]
+        message:
+          type: object
+          additionalProperties: false
+          required: [order]
+          properties:
+            order:
+              $ref: '#/components/schemas/Order'
+        error:
+          $ref: '#/components/schemas/Error'
+
+    Context:
+      type: object
+      additionalProperties: false
+      required:
+        - location
+        - domain
+        - action
+        - version
+        - bap_id
+        - bap_uri
+        - bpp_id
+        - bpp_uri
+        - transaction_id
+        - message_id
+        - timestamp
+        - ttl
+      properties:
+        location:
+          type: object
+          additionalProperties: false
+          required: [country, city]
+          properties:
+            country:
+              type: object
+              properties:
+                code: { type: string, enum: [IND] }
+            city:
+              type: object
+              properties:
+                code: { type: string, enum: ['*'] }
+        domain:  { type: string, enum: [ONDC:FIS15] }
+        action:  { type: string, enum: [on_cancel] }
+        version: { type: string, example: 0.2.0 }
+        bap_id:  { type: string }
+        bap_uri: { type: string, format: uri }
+        bpp_id:  { type: string }
+        bpp_uri: { type: string, format: uri }
+        transaction_id:
+          type: string
+          format: uuid
+          description: Echoes the /cancel being answered.
+        message_id:
+          type: string
+          format: uuid
+          description: >-
+            Echoes the /cancel's message_id. This call is never unsolicited — a
+            cancellation the ISSUER initiates arrives on /on_status with
+            CANCELLATION_INFO saying CANCELLED_BY BPP.
+        timestamp: { type: string, format: date-time }
+        ttl:       { type: string, example: PT10M }
+
+    Order:
+      type: object
+      additionalProperties: false
+      required: [id, status, provider, fulfillments, cancellation_terms, tags]
+      description: >-
+        id is unconditionally mandatory here, unlike on /on_status and
+        /on_update. A cancellation always names an order that /on_confirm
+        already minted; the only thing in FIS15 without an id is an onboarding
+        chain, and ending one of those is /update, not this call.
+
+        items AND quote ARE CONDITIONAL, and both hang on the same distinction.
+        Scope ORDER ends an order whose deposit never existed: there are no
+        economics to state and there was nothing to price, so the item and the
+        quote are both absent. Both deposit scopes carry both. Requiring them
+        unconditionally would have forced an issuer to invent an empty item and
+        a zero quote for the one case that has neither.
+      allOf:
+        - if:
+            required: [items]
+          then:
+            required: [quote]
+          else:
+            not: { required: [quote] }
+          description: >-
+            items and quote stand or fall together. A response that priced
+            something must show what it priced, and one that priced nothing must
+            not carry a quote — which is the shape scope ORDER always takes.
+        - if:
+            allOf:
+              - required: [quote]
+              - not: { required: [payments] }
+          then:
+            properties:
+              quote:
+                required: [ttl]
+          description: >-
+            A priced response that has moved no money is a QUOTE, and a quote
+            without an expiry is not a quote when interest accrues daily. The
+            absence of payments is what identifies the shape, because nothing is
+            appended to the ledger until an EXECUTE.
+        - if:
+            allOf:
+              - required: [quote]
+              - required: [payments]
+          then:
+            properties:
+              quote:
+                not: { required: [ttl] }
+          description: >-
+            An executed response must NOT carry a ttl. The figure is no longer an
+            offer that can lapse — the money has been computed and the entry is
+            on the ledger — and a lingering ttl would leave a buyer app
+            counting down against a payout already made.
+      properties:
+        id:
+          type: string
+          example: FD-ICICI-20260902-004481
+        status:
+          type: string
+          enum: [ACCEPTED, ACTIVE, COMPLETED, CANCELLED]
+          description: >-
+            THE STATE AFTER THE ANSWER, and on a QUOTE that means unchanged.
+            ACCEPTED or ACTIVE on any quote. COMPLETED when a live deposit was
+            broken in full — the contract ended as the contract provided, which
+            is not the same as being cancelled. CANCELLED when an order was ended
+            before its deposit existed. ACTIVE, unchanged, when a partial
+            withdrawal left the deposit running.
+        provider:
+          type: object
+          additionalProperties: false
+          required: [id]
+          properties:
+            id:         { type: string }
+            descriptor: { $ref: '#/components/schemas/Descriptor' }
+        ref_order_ids:
+          type: array
+          items: { type: string }
+        items:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/Item'
+          description: >-
+            Present on both deposit scopes and ABSENT on scope ORDER, where no
+            deposit exists to carry economics.
+        fulfillments:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/Fulfillment'
+        payments:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Payment'
+          description: >-
+            THE WHOLE LEDGER, present on an EXECUTE and absent on a QUOTE —
+            nothing has moved on a quote, and returning a ledger would imply
+            otherwise. Append-only: the original collection keeps its PAID
+            status and the payout is a new entry.
+        quote:
+          allOf:
+            - $ref: '#/components/schemas/Quote'
+          description: >-
+            Present on both deposit scopes and ABSENT on scope ORDER — an order
+            whose deposit never existed has no payout to compute, which is also
+            why /cancel forbids a quote id on that scope.
+        documents:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Document'
+          description: >-
+            The closure advice, on an EXECUTE that ended or reduced a deposit.
+            The BRD requires the investor to receive the closure date, the
+            penalty applied, the final interest, the TDS deducted and the net
+            amount credited; this is where that document arrives.
+        cancellation_terms:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/CancellationTerm'
+          description: >-
+            Restated on every shape, including the quote, so the investor can see
+            the schedule the figure was computed against rather than take the
+            figure on trust.
+        refund_terms:
+          type: array
+          items:
+            $ref: '#/components/schemas/RefundTerm'
+          description: Present when scope was ORDER and money had been collected.
+        tags:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/TagGroup'
+          description: Carries BPP_TERMS.
+
+    Item:
+      type: object
+      additionalProperties: false
+      required: [id, descriptor, fulfillment_ids, quantity, tags]
+      properties:
+        id: { type: string }
+        descriptor:
+          type: object
+          required: [name, code]
+          properties:
+            name: { type: string }
+            code: { type: string, enum: [DEPOSIT_PRODUCT, SERVICE] }
+        fulfillment_ids:
+          type: array
+          minItems: 1
+          items: { type: string }
+        quantity:
+          type: object
+          additionalProperties: false
+          required: [selected]
+          properties:
+            selected:
+              type: object
+              additionalProperties: false
+              required: [measure]
+              properties:
+                measure:
+                  type: object
+                  additionalProperties: false
+                  required: [value, unit]
+                  properties:
+                    value:
+                      type: string
+                      description: >-
+                        The principal AFTER the answer. Unchanged on a quote and
+                        on a full withdrawal; reduced on an executed partial,
+                        where it must equal the restated
+                        DEPOSIT_INFORMATION.PRINCIPAL.
+                    unit: { type: string, enum: [INR] }
+        tags:
+          type: array
+          minItems: 1
+          maxItems: 2
+          items:
+            $ref: '#/components/schemas/TagGroup'
+          description: >-
+            WITHDRAWAL_INFORMATION on every deposit scope, describing what is
+            leaving. DEPOSIT_INFORMATION as a second group ONLY on an executed
+            partial, describing what remains. A full withdrawal returns no
+            DEPOSIT_INFORMATION — there is no deposit left to describe.
+
+    Fulfillment:
+      type: object
+      additionalProperties: false
+      required: [id, type, state, customer, tags]
+      description: >-
+        Still the deposit's own fulfillment, and still type DEPOSIT. Ending a
+        deposit early is a state it reaches, not a second thing delivered
+        alongside it — which is why PREMATURE_WITHDRAWAL and PARTIAL_WITHDRAWAL
+        were retired from the type enums in this revision.
+      properties:
+        id:   { type: string }
+        type: { type: string, enum: [DEPOSIT] }
+        state:
+          type: object
+          additionalProperties: false
+          required: [descriptor]
+          properties:
+            descriptor:
+              type: object
+              additionalProperties: false
+              required: [code]
+              properties:
+                name: { type: string }
+                code:
+                  type: string
+                  enum: [PENDING, INITIATED, ACTIVE, CLOSED_PREMATURE, CANCELLED]
+                  description: >-
+                    Unchanged on a quote. CLOSED_PREMATURE on an executed full
+                    withdrawal. CANCELLED on an executed ORDER scope. ACTIVE,
+                    unchanged, on an executed partial. MATURED and FAILED cannot
+                    be produced by this call — the first is time passing and the
+                    second is a booking that did not happen.
+        customer:
+          type: object
+          additionalProperties: false
+          required: [person]
+          properties:
+            person:
+              type: object
+              additionalProperties: false
+              required: [id]
+              properties:
+                id: { type: string, example: pan:abcpk1234f }
+        stops:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            additionalProperties: false
+            required: [time]
+            properties:
+              time:
+                type: object
+                additionalProperties: false
+                properties:
+                  label:     { type: string, enum: [VALUE_DATE, MATURITY_DATE, CLOSURE_DATE] }
+                  timestamp: { type: string, format: date-time }
+                  duration:  { type: string }
+          description: >-
+            VALUE_DATE and MATURITY_DATE as the deposit has always carried them,
+            plus CLOSURE_DATE on an executed full withdrawal — the date the
+            contract actually ended, which is not the maturity date and is what
+            every downstream tax and accounting question turns on. Dates live
+            here and in no tag, as everywhere else in FIS15.
+        tags:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/TagGroup'
+          description: >-
+            CANCELLATION_INFO on every EXECUTE. LINKED_BANK_ACCOUNT on any
+            EXECUTE that moved money, naming the account it went to.
+            INVESTOR_STATUS as on every other issuer response.
+
+    Payment:
+      type: object
+      additionalProperties: false
+      required: [id, collected_by, status, type, params, tags]
+      description: >-
+        One entry in the append-only ledger. The outbound entry is a new id and a
+        new row; the collection that funded the deposit keeps its PAID status
+        forever, because the money was in fact collected and a ledger that
+        rewrites that cannot be reconciled against the bank's.
+      properties:
+        id: { type: string }
+        collected_by:
+          type: string
+          enum: [BPP]
+          description: >-
+            BPP on an outbound entry too. It names the party that MOVES the
+            money, not the party that ends up with it — the same reading
+            /on_status already relies on for interest-payout entries. Worth
+            stating because "collected_by" reads wrong on a payout and an
+            implementer will otherwise wonder whether to invert it.
+        status:
+          type: string
+          enum: [NOT-PAID, PAID, FAILED]
+          description: >-
+            A payout is NOT-PAID until the credit lands, then PAID on a later
+            /on_status. An issuer that reports PAID at /on_cancel is asserting a
+            credit it has not yet made.
+        type:
+          type: string
+          enum: [PRE_FULFILLMENT, ON_FULFILLMENT, REFUND]
+          description: >-
+            ON_FULFILLMENT for a withdrawal payout — the deposit paid out, which
+            is what it was for. REFUND for money returned on an order that never
+            became a deposit. PRE_FULFILLMENT appears only as the historic
+            collection entry.
+        params:
+          type: object
+          additionalProperties: false
+          required: [amount, currency]
+          properties:
+            amount:
+              type: string
+              description: >-
+                On the outbound entry, the NET PAYOUT — equal to quote.price.
+            currency: { type: string, enum: [INR] }
+            transaction_id:
+              type: string
+              description: The bank reference, present once the entry reaches PAID.
+            bank_code:                  { type: string }
+            bank_account_number:        { type: string }
+        tags:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/PaymentMethodTagGroup'
+
+    Quote:
+      type: object
+      additionalProperties: false
+      required: [id, price, breakup]
+      description: >-
+        WHAT THE INVESTOR GETS OUT, which is the opposite of every other quote in
+        FIS15 — at /on_select and /on_init quote.price is what they pay in. The
+        lines are signed and they reconcile.
+      properties:
+        id:
+          type: string
+          example: cxl_004481_20270315_a71f
+          description: >-
+            Minted on the QUOTE round and echoed by the EXECUTE that follows. A
+            fresh id per quote, so a stale one cannot be replayed against a
+            recomputed payout.
+        price:
+          allOf:
+            - $ref: '#/components/schemas/Price'
+          description: The NET PAYOUT. Equal to the NET_PAYOUT breakup line.
+        breakup:
+          type: array
+          minItems: 2
+          items:
+            type: object
+            additionalProperties: false
+            required: [title, price]
+            properties:
+              item:
+                type: object
+                additionalProperties: false
+                properties:
+                  id:              { type: string }
+                  fulfillment_ids: { type: array, items: { type: string } }
+              title:
+                type: string
+                enum: [PRINCIPAL, INTEREST_ACCRUED, PREMATURE_WITHDRAWAL_PENALTY, TDS, NET_PAYOUT]
+              price:
+                $ref: '#/components/schemas/Price'
+          description: >-
+            SIGNED VALUES, and they must reconcile exactly —
+            PRINCIPAL + INTEREST_ACCRUED + PREMATURE_WITHDRAWAL_PENALTY + TDS
+            equals NET_PAYOUT, which equals quote.price.
+
+            INTEREST_ACCRUED CAN BE NEGATIVE. On a periodic deposit the issuer
+            has already paid interest out quarter by quarter, so a withdrawal
+            part-way through recovers the overpayment from the principal. A
+            buyer app that renders this line as an unsigned credit will show the
+            investor a larger payout than they are getting.
+
+            PREMATURE_WITHDRAWAL_PENALTY carries money ONLY when PENALTY_TYPE is
+            FLAT_FEE. A RATE_REDUCTION penalty is already inside the recomputed
+            interest, and stating it twice would double-count it — the rate facts
+            are in WITHDRAWAL_INFORMATION instead.
+        ttl:
+          type: string
+          example: PT15M
+          description: >-
+            MANDATORY ON A QUOTE, absent on an executed response. Interest
+            accrues daily and card rates move daily, so a payout figure without
+            an expiry is not a figure. An EXECUTE arriving after it is 832025.
+
+    Document:
+      type: object
+      additionalProperties: false
+      required: [descriptor, mime_type, url]
+      properties:
+        descriptor:
+          type: object
+          additionalProperties: false
+          required: [name, code]
+          properties:
+            name: { type: string }
+            code:
+              type: string
+              enum: [CLOSURE_ADVICE, FD_RECEIPT, INTEREST_CERTIFICATE, TDS_CERTIFICATE]
+              description: >-
+                CLOSURE_ADVICE is added in this revision and is the document the
+                BRD's Closure Confirmation stage describes. On a partial
+                withdrawal a revised FD_RECEIPT accompanies it, because the
+                continuing deposit is on different terms from the one the
+                original receipt describes.
+        mime_type: { type: string, enum: [application/pdf, text/html] }
+        url:       { type: string, format: uri }
+
+    Price:
+      type: object
+      additionalProperties: false
+      required: [currency, value]
+      properties:
+        currency: { type: string, enum: [INR] }
+        value:
+          type: string
+          description: Signed. A leading minus is legal on breakup lines and nowhere else.
+
+    CancellationTerm:
+      type: object
+      additionalProperties: false
+      required: [fulfillment_state]
+      properties:
+        fulfillment_state:
+          type: object
+          additionalProperties: false
+          required: [descriptor]
+          properties:
+            descriptor:
+              type: object
+              additionalProperties: false
+              required: [code]
+              properties:
+                name: { type: string }
+                code:
+                  type: string
+                  enum: [PENDING, INITIATED, ACTIVE, MATURED, CLOSED_PREMATURE, FAILED, CANCELLED]
+        reason_required: { type: boolean }
+        cancellation_fee:
+          type: object
+          additionalProperties: false
+          properties:
+            percentage: { type: string }
+            amount:     { $ref: '#/components/schemas/Price' }
+
+    RefundTerm:
+      type: object
+      additionalProperties: false
+      required: [fulfillment_state, refund_eligible]
+      properties:
+        fulfillment_state:
+          type: object
+          additionalProperties: false
+          required: [descriptor]
+          properties:
+            descriptor:
+              type: object
+              additionalProperties: false
+              required: [code]
+              properties:
+                name: { type: string }
+                code:
+                  type: string
+                  enum: [PENDING, INITIATED, ACTIVE, MATURED, CLOSED_PREMATURE, FAILED, CANCELLED]
+        refund_eligible: { type: boolean }
+        refund_within:
+          type: object
+          additionalProperties: false
+          properties:
+            duration: { type: string }
+        refund_amount: { $ref: '#/components/schemas/Price' }
+
+    PaymentMethodTagGroup:
+      type: object
+      additionalProperties: false
+      required: [descriptor, list]
+      properties:
+        display: { type: boolean, default: false }
+        descriptor:
+          type: object
+          additionalProperties: false
+          required: [code]
+          properties:
+            name: { type: string }
+            code: { const: PAYMENT_METHOD }
+        list:
+          type: array
+          minItems: 1
+          maxItems: 2
+          items:
+            type: object
+            additionalProperties: false
+            required: [descriptor, value]
+            properties:
+              descriptor:
+                type: object
+                additionalProperties: false
+                required: [code]
+                properties:
+                  name: { type: string }
+                  code: { type: string, enum: [MODE, AUTH] }
+              value:   { type: string }
+              display: { type: boolean }
+
+    TagGroup:
+      type: object
+      additionalProperties: false
+      required: [descriptor, list]
+      properties:
+        display:    { type: boolean, default: false }
+        descriptor: { $ref: '#/components/schemas/Descriptor' }
+        list:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Tag'
+
+    Tag:
+      type: object
+      additionalProperties: false
+      required: [descriptor, value]
+      properties:
+        descriptor: { $ref: '#/components/schemas/Descriptor' }
+        value:      { type: string }
+        display:    { type: boolean }
+
+    Descriptor:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string }
+        code: { type: string }
+
+    Error:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          pattern: '^8320[0-4][0-9]$'
+        message: { type: string }
+
+    Ack:
+      type: object
+      properties:
+        message:
+          type: object
+          properties:
+            ack:
+              type: object
+              properties:
+                status: { type: string, enum: [ACK, NACK] }
+        error:
+          $ref: '#/components/schemas/Error'
+
+  x-ondc-fis15:
+
+    shapes:
+      description: >-
+        Three responses, and which one arrives is decided by the
+        cancellation_type the BUYER APP sent. As with /on_update, fixing the
+        mapping means a buyer app writes straight-line code instead of a
+        two-branch guess.
+      list:
+        - id: 1
+          name: Quote
+          answers: cancellation_type QUOTE, any scope
+          state_change: none — order.status and fulfillment.state come back as they were
+          carries: >-
+            quote with a MANDATORY ttl, WITHDRAWAL_INFORMATION on the item,
+            cancellation_terms. NO payments, NO documents, NO CANCELLATION_INFO.
+        - id: 2
+          name: Executed
+          answers: cancellation_type EXECUTE, any scope
+          state_change: per the scopes table in FIS15_cancel_API.yaml
+          carries: >-
+            the new state, the appended payment entry, CANCELLATION_INFO,
+            documents[] with the closure advice, and — on a partial only — the
+            restated DEPOSIT_INFORMATION.
+        - id: 3
+          name: Refused
+          answers: either type
+          state_change: none
+          carries: context plus error, and NO message.order.
+
+    tag-groups:
+
+      WITHDRAWAL_INFORMATION:
+        level: item
+        required: conditional
+        cardinality: once
+        description: >-
+          ADDED IN THIS REVISION. HOW THE PAYOUT WAS REACHED, as distinct from
+          what it is — the money is in quote.breakup and the reasoning is here.
+          Mandatory whenever CANCELLATION_SCOPE was DEPOSIT_FULL or
+          DEPOSIT_PARTIAL, on both the quote and the executed shape. Absent on
+          scope ORDER, where nothing was computed because no deposit existed.
+
+          Item level, because this is the deposit's economics and the deposit's
+          economics have been item level since v0.2.0.
+        list:
+          WITHDRAWAL_TYPE:
+            required: mandatory
+            enum: [FULL, PARTIAL]
+          WITHDRAWAL_AMOUNT:
+            required: conditional
+            type: decimal
+            description: >-
+              Mandatory when WITHDRAWAL_TYPE is PARTIAL — the principal being
+              taken out, echoing what the buyer app asked for. On a FULL
+              withdrawal the whole principal leaves and the figure is in
+              quote.breakup PRINCIPAL.
+          REMAINING_PRINCIPAL:
+            required: conditional
+            type: decimal
+            description: >-
+              Mandatory when WITHDRAWAL_TYPE is PARTIAL. Must equal
+              items[].quantity after the withdrawal and the restated
+              DEPOSIT_INFORMATION.PRINCIPAL — three statements of one fact, which
+              is two too many, and they are all present because the buyer app
+              renders from all three places.
+          RUN_TENURE_DAYS:
+            required: mandatory
+            type: integer
+            description: >-
+              Days from VALUE_DATE to the closure date. THE INPUT THAT DECIDES
+              EVERYTHING — it selects the card rate cell and the penalty tier —
+              so it is stated rather than left to be inferred from two dates.
+          CONTRACTED_RATE:
+            required: mandatory
+            type: decimal
+            description: >-
+              The rate the deposit was booked at, % p.a. Present so the investor
+              can see what they are giving up, not because anything is computed
+              from it.
+          RATE_BASIS:
+            required: mandatory
+            enum: [CARD_RATE_FOR_RUN_TENURE, CONTRACTED_RATE_LESS_SPREAD]
+            description: >-
+              Which convention the issuer applied, from
+              PREMATURE_WITHDRAWAL_TERMS in the catalog. Banks recompute at the
+              card rate for the tenure actually run; NBFC-D apply a fixed spread
+              below the contracted rate under the RBI directions. The two produce
+              materially different payouts on the same deposit, so a buyer app
+              that does not show which was used cannot explain the figure.
+          CARD_RATE_FOR_RUN_TENURE:
+            required: conditional
+            type: decimal
+            description: >-
+              Mandatory when RATE_BASIS is CARD_RATE_FOR_RUN_TENURE. The rate the
+              contracted one was replaced by, before the penalty. Reproducible by
+              the buyer app from its cached RATE_CARD_ENTRY cells, which is the
+              point — a rate the BAP cannot derive means a stale cache or a wrong
+              computation, and either is worth catching.
+          PENALTY_TYPE:
+            required: mandatory
+            enum: [RATE_REDUCTION, FLAT_FEE, NO_INTEREST, NONE]
+            description: From the PENALTY_TIER covering RUN_TENURE_DAYS.
+          PENALTY_BPS:
+            required: conditional
+            type: integer
+            description: Mandatory when PENALTY_TYPE is RATE_REDUCTION.
+          PENALTY_AMOUNT:
+            required: conditional
+            type: decimal
+            description: >-
+              Mandatory when PENALTY_TYPE is FLAT_FEE, and then it must also
+              appear as the PREMATURE_WITHDRAWAL_PENALTY breakup line. A rate
+              reduction never appears as money.
+          APPLICABLE_RATE:
+            required: mandatory
+            type: decimal
+            description: >-
+              The rate interest was actually computed at — the card rate less the
+              penalty, or the contracted rate less the spread. THE ONE NUMBER
+              THAT EXPLAINS THE PAYOUT.
+          INTEREST_FORGONE:
+            required: conditional
+            type: decimal
+            description: >-
+              Mandatory on WITHDRAWAL_TYPE FULL. What the investor gives up by
+              not holding to maturity — the contracted MATURITY_AMOUNT less what
+              they are being paid. The single most decision-relevant figure on
+              the screen, and the reason the QUOTE round exists at all. Optional
+              on a partial, where the counterfactual is muddier.
+          INTEREST_ALREADY_PAID:
+            required: conditional
+            type: decimal
+            description: >-
+              Mandatory when the deposit's PAYOUT_FREQUENCY is not CUMULATIVE.
+              Interest already paid out on the portion being withdrawn. Where it
+              exceeds the recomputed entitlement the difference is recovered from
+              the principal, INTEREST_ACCRUED in the breakup goes NEGATIVE, and
+              the investor receives less than they asked for — which needs
+              explaining on screen, not discovering at the bank.
+
+      CANCELLATION_INFO:
+        level: fulfillment
+        required: conditional
+        cardinality: once
+        description: >-
+          Mandatory on every EXECUTE and absent on a quote. The same group
+          /on_status carries, with the same three fields, so a cancellation
+          reported here and the same cancellation reported on a later status poll
+          read identically.
+        list:
+          CANCELLED_BY:
+            required: mandatory
+            enum: [BAP, BPP, INVESTOR]
+            description: >-
+              Echoes what the buyer app declared. BPP appears here only when the
+              issuer refused to honour the requested party, which it should not
+              do silently.
+          REASON_CODE:
+            required: mandatory
+            description: Echoes message.cancellation_reason_id from the /cancel.
+          REASON_MESSAGE:
+            required: optional
+
+      LINKED_BANK_ACCOUNT:
+        level: fulfillment
+        required: conditional
+        cardinality: once
+        description: >-
+          Mandatory on an EXECUTE that moved money, naming the account it went
+          to. The same account the deposit was funded from and no other — an
+          issuer paying out elsewhere is 832036 — so this is a statement of fact
+          rather than a choice either side made here.
+        list:
+          IDENTIFIER:            { required: mandatory }
+          ACCOUNT_ROLE:          { required: mandatory, enum: [FUNDING, PAYOUT, BOTH] }
+          MASKED_ACCOUNT_NUMBER: { required: optional }
+          BANK_NAME:             { required: optional }
+          IFSC:                  { required: optional }
+
+      DEPOSIT_INFORMATION:
+        level: item
+        required: conditional
+        cardinality: once
+        description: >-
+          THE CONTINUING DEPOSIT, restated in full. Present ONLY on an executed
+          DEPOSIT_PARTIAL, and absent everywhere else on this call — a quote
+          changes nothing, and a full withdrawal leaves nothing to describe.
+
+          Same field set as everywhere else the issuer states it. The rate, the
+          payout frequency, the compounding and the maturity date all survive a
+          partial withdrawal untouched; PRINCIPAL and the per-payout figures are
+          what move.
+        list:
+          PRINCIPAL:              { required: mandatory, type: decimal, description: 'The reduced principal. Must equal items[].quantity and WITHDRAWAL_INFORMATION.REMAINING_PRINCIPAL.' }
+          TENURE_DAYS:            { required: mandatory, type: integer, description: 'Unchanged. A partial withdrawal does not shorten the term.' }
+          INTEREST_RATE:          { required: mandatory, type: decimal, description: 'Unchanged — the contracted rate survives, even where the reduced principal falls into a different amount slab. See open-points in FIS15_cancel_API.yaml.' }
+          ANNUALISED_YIELD:       { required: mandatory, type: decimal }
+          PAYOUT_FREQUENCY:       { required: mandatory, enum: [CUMULATIVE, MONTHLY, QUARTERLY, HALF_YEARLY, ANNUAL] }
+          COMPOUNDING_FREQUENCY:  { required: mandatory, type: duration }
+          MATURITY_INSTRUCTION:   { required: mandatory, enum: [CREDIT_TO_BANK, RENEW_PRINCIPAL, RENEW_PRINCIPAL_AND_INTEREST] }
+          MATURITY_AMOUNT:        { required: mandatory, type: decimal, description: 'Recomputed on the reduced principal.' }
+          TOTAL_INTEREST:
+            required: mandatory
+            type: decimal
+            description: >-
+              BLENDED, and this is the field a partial withdrawal makes awkward.
+              It is the interest the deposit pays over its WHOLE life — what was
+              already paid on the original principal plus what remains to be paid
+              on the reduced one. PROJECTION_BASIS must say so, because the
+              figure cannot be derived from PRINCIPAL and INTEREST_RATE alone and
+              an investor checking it with a calculator will conclude it is
+              wrong.
+          INTEREST_PER_PAYOUT:    { required: conditional, type: decimal, description: 'Mandatory when PAYOUT_FREQUENCY is not CUMULATIVE. Recomputed on the reduced principal, so it changes from the next payout on.' }
+          PAYOUT_COUNT:           { required: conditional, type: integer, description: 'Mandatory when PAYOUT_FREQUENCY is not CUMULATIVE. Payouts over the whole term, not the remaining ones.' }
+          FINAL_STUB_INTEREST:    { required: conditional, type: decimal, description: 'Mandatory when PAYOUT_FREQUENCY is not CUMULATIVE.' }
+          TDS_ESTIMATED:          { required: mandatory, type: decimal }
+          NET_MATURITY_AMOUNT:    { required: conditional, type: decimal, description: 'Mandatory when PAYOUT_FREQUENCY is CUMULATIVE.' }
+          PROJECTION_BASIS:
+            required: mandatory
+            description: >-
+              MANDATORY HERE, unlike everywhere else in FIS15 where it is
+              optional. After a partial withdrawal the figures are blended across
+              two principals and cannot be reproduced from the group alone, so
+              the assumptions have to travel with them.
+
+      INVESTOR_STATUS:
+        level: fulfillment
+        required: mandatory
+        cardinality: once
+        description: Unchanged in shape from every other issuer response.
+        list:
+          INVESTOR_CATEGORY:  { required: mandatory, enum: [INDIVIDUAL, JOINT, MINOR, HUF, NRI, CORPORATE] }
+          DEPOSITOR_CATEGORY: { required: mandatory, enum: [GENERAL, SENIOR_CITIZEN, SUPER_SENIOR_CITIZEN, STAFF, NRE, NRO] }
+          CATEGORY_BASIS:     { required: mandatory, enum: [CLAIMED, VERIFIED_ETB, VERIFIED_KYC] }
+
+      PAYMENT_METHOD:
+        level: payment
+        required: conditional
+        cardinality: once per payment entry
+        description: >-
+          One group per ledger entry, present whenever payments is. On the
+          outbound entry MODE is the rail the money went OUT on, which need not
+          be the rail it came in on — a deposit funded by RTGS is repaid by
+          whatever rail the issuer settles payouts over.
+        list:
+          MODE: { required: mandatory, enum: [NETBANKING, UPI, IMPS, NEFT, RTGS] }
+          AUTH: { required: conditional, enum: [URI, COLLECT], description: 'Mandatory when MODE is UPI; not permitted otherwise.' }
+
+      BPP_TERMS:
+        level: order
+        required: mandatory
+        list:
+          STATIC_TERMS:     { required: mandatory, type: uri }
+          OFFLINE_CONTRACT: { required: mandatory, enum: ['true', 'false'] }
+
+    rules:
+      - TAG LEVELS ARE FIXED ACROSS THE JOURNEY. item carries the deposit's
+        economics — WITHDRAWAL_INFORMATION for what is leaving,
+        DEPOSIT_INFORMATION for what remains. fulfillment carries the investor
+        and the servicing — INVESTOR_STATUS, CANCELLATION_INFO,
+        LINKED_BANK_ACCOUNT. payment carries money movement. order carries only
+        BPP_TERMS.
+      - Dates live in stops, never in a tag. CLOSURE_DATE is a stop, and on an
+        executed full withdrawal it is mandatory — it is the date the contract
+        ended and every tax question downstream turns on it.
+      - A QUOTE CHANGES NOTHING. order.status and fulfillment.state come back as
+        they were, payments and documents are absent, and CANCELLATION_INFO is
+        absent. An issuer that moves state on a quote has cancelled a deposit
+        nobody instructed it to cancel.
+      - quote.ttl is MANDATORY on a quote and absent on an executed response. A
+        payout figure without an expiry is not a figure when interest accrues
+        daily.
+      - THE BREAKUP MUST RECONCILE, exactly. PRINCIPAL + INTEREST_ACCRUED +
+        PREMATURE_WITHDRAWAL_PENALTY + TDS equals NET_PAYOUT equals quote.price.
+      - INTEREST_ACCRUED IS SIGNED and goes negative when a periodic deposit has
+        already paid out more than the recomputed entitlement. Render it as a
+        deduction, not a credit.
+      - PREMATURE_WITHDRAWAL_PENALTY carries money only for a FLAT_FEE penalty. A
+        RATE_REDUCTION is inside APPLICABLE_RATE and stating it again as money
+        double-counts it.
+      - A full withdrawal ends the order as COMPLETED, not CANCELLED, and the
+        fulfillment as CLOSED_PREMATURE. The contract ended on the terms the
+        contract set out. Only an order whose deposit never existed is CANCELLED.
+      - A partial withdrawal changes NO state. The order stays ACTIVE and the
+        fulfillment stays ACTIVE; the principal and the per-payout figures move
+        and nothing else does.
+      - The payout is an APPENDED entry, type ON_FULFILLMENT for a deposit that
+        paid out or REFUND for an order that gave money back. The collection
+        entry keeps its PAID status forever.
+      - A payout entry is NOT-PAID until the credit lands. The PAID confirmation
+        arrives on a later unsolicited /on_status with params.transaction_id.
+      - The payout goes to the LINKED_BANK_ACCOUNT of record and no other, or
+        832036.
+      - WITHDRAWAL_INFORMATION is mandatory on both deposit scopes and absent on
+        scope ORDER. DEPOSIT_INFORMATION is present ONLY on an executed partial.
+      - items AND quote ARE BOTH ABSENT on scope ORDER, and both present on
+        either deposit scope. Schema-enforced by an if/then — a response that
+        carries an item must carry a quote, and one that does not must not.
+      - CARD_RATE_FOR_RUN_TENURE must be reproducible from the buyer app's cached
+        rate card, and APPLICABLE_RATE from that plus the PENALTY_TIER covering
+        RUN_TENURE_DAYS. A figure the BAP cannot derive means one of the two
+        sides is wrong, and it is worth surfacing rather than rendering.
+      - This call is NEVER unsolicited. An issuer-initiated cancellation — an
+        unpaid order expiring, a VKYC SLA breached — arrives on /on_status with
+        CANCELLATION_INFO saying CANCELLED_BY BPP.
+
+    decisions:
+      quote-is-what-you-get-out:
+        change: >-
+          quote.price on this call is the NET PAYOUT to the investor, inverting
+          its meaning everywhere else in FIS15, and breakup values are signed.
+        why: >-
+          A cancellation is the only call where money flows toward the investor,
+          and the alternative — a positive-only breakup with the direction
+          implied by the action — would make a partial withdrawal on a periodic
+          deposit unrepresentable, because there the interest line is genuinely
+          negative. Signed values state what happened; unsigned ones would need a
+          convention document.
+        cost: >-
+          An implementer reusing a quote renderer from /on_select will show the
+          payout as a cost. Stated in the Quote schema description rather than
+          left to be discovered.
+      no-child-order-for-the-payout:
+        change: >-
+          The withdrawal payout is an appended entry on the PARENT order's
+          ledger, not a child order with ref_order_ids.
+        why: >-
+          Interest payouts are child orders because they recur and each is its
+          own event against a deposit that continues. A withdrawal is the deposit
+          itself ending or shrinking — the same order, in a new state. Minting a
+          child would mean the closure of a deposit and the record of the deposit
+          lived under different ids, and a buyer app reconciling a portfolio
+          would have to join them.
+        knock-on: >-
+          With no withdrawal-typed fulfillment and no withdrawal child order,
+          PREMATURE_WITHDRAWAL and PARTIAL_WITHDRAWAL are unreachable as
+          fulfillment types and are retired from every enum in this revision.
+      completed-not-cancelled:
+        change: >-
+          A full premature withdrawal moves the order to COMPLETED. CANCELLED is
+          reserved for an order whose deposit never existed.
+        why: >-
+          Not a new decision — /on_status already states the coupling
+          ("CLOSED_PREMATURE moves the order to COMPLETED — the contract ended as
+          contracted, not abnormally"). Restated here because /cancel is the call
+          that produces it, and an implementer reading only this file would
+          otherwise reasonably expect a call named cancel to leave things
+          CANCELLED.
+      blended-total-interest:
+        change: >-
+          PROJECTION_BASIS is MANDATORY in the DEPOSIT_INFORMATION returned after
+          a partial withdrawal, where it is optional everywhere else.
+        why: >-
+          TOTAL_INTEREST after a partial withdrawal spans two principals and
+          cannot be reproduced from the group's own fields. Every other
+          DEPOSIT_INFORMATION in FIS15 is self-checking; this one is not, so the
+          assumptions have to travel with it or the investor concludes the
+          arithmetic is broken.
+        cost: >-
+          One group now has a field whose requiredness depends on which call
+          produced it. Worth it against a figure that cannot be checked.
+
+    open-points:
+      payout-rail-unstated:
+        status: unresolved
+        question: >-
+          PAYMENT_METHOD.MODE on the outbound entry says which rail the money
+          went out on, but nothing lets the investor influence it and nothing
+          publishes the issuer's settlement SLA. A Rs 3 crore payout by NEFT and
+          by RTGS land on different days.
+        recommendation: >-
+          Publish a PAYOUT_SLA in PRODUCT_INFORMATION alongside the servicing
+          flags, and state the rail in the quote so it is on screen before the
+          investor commits rather than discovered afterwards.
+      quote-then-rate-moves:
+        status: unresolved
+        question: >-
+          A cancellation quote is computed from the card rate for the run tenure,
+          and the card reprices daily. A quote issued at 09:00 and executed at
+          16:00 is inside a normal ttl but may no longer reflect the card.
+        recommendation: >-
+          Bind the quote ttl to the issuer's own repricing boundary rather than a
+          flat duration, or require the executed response to restate
+          APPLICABLE_RATE so a buyer app can diff it against the quote and tell
+          the investor before it lands. The second is cheaper and catches more.
+      tds-on-recovery:
+        status: unresolved
+        question: >-
+          When a periodic deposit is partially withdrawn and interest is
+          recovered, TDS was already deducted and remitted on the larger amount
+          that was paid out. The excess TDS is the investor's to reclaim from the
+          tax authority, not the issuer's to refund, and nothing in the payload
+          says so.
+        recommendation: >-
+          Carry a TDS_ALREADY_DEDUCTED field in WITHDRAWAL_INFORMATION and
+          require the closure advice to state the position, so the investor knows
+          to claim it. Confirm the treatment with a tax adviser before
+          specifying it — this note is a flag, not advice.
+
+    source:
+      derived-from:
+        - FD_ONDC_BRD_Final.docx v1.0, Post-Booking Services (Premature
+          Withdrawal, Partial Withdrawal, Closure Confirmation & Funds Credit)
+        - FIS15_on_search_API_modified.yaml — PENALTY_TIER and
+          PREMATURE_WITHDRAWAL_TERMS, which the quote is computed from
+        - FIS15_on_status_API.yaml — the append-only ledger, the
+          CLOSED_PREMATURE coupling and the Document shape
+      chains-with:
+        - FIS15_cancel_API.yaml — the call this answers
+        - FIS15_on_status_API.yaml — reports the payout reaching PAID, and the
+          order in its terminal state thereafter
+      beckn-core: 1.3.0

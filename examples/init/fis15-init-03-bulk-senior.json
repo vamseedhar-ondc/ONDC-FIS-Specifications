@@ -1,0 +1,140 @@
+{
+  "context": {
+    "location": {
+      "country": {
+        "code": "IND"
+      },
+      "city": {
+        "code": "*"
+      }
+    },
+    "domain": "ONDC:FIS15",
+    "action": "init",
+    "version": "0.2.0",
+    "bap_id": "api.buyerapp.com",
+    "bap_uri": "https://api.buyerapp.com/ondc",
+    "bpp_id": "api.icicibank.com",
+    "bpp_uri": "https://api.icicibank.com/ondc",
+    "transaction_id": "7c1f0a34-2b58-4d91-8e6a-1f0c7d2b4a95",
+    "message_id": "8efaba24-7277-48ea-9163-972a65dc3006",
+    "timestamp": "2026-09-02T09:30:00.000Z",
+    "ttl": "PT10M"
+  },
+  "message": {
+    "order": {
+      "provider": {
+        "id": "icici_fd"
+      },
+      "items": [
+        {
+          "id": "icici_fd_regular",
+          "fulfillment_ids": [
+            "ff_dep_01"
+          ],
+          "quantity": {
+            "selected": {
+              "measure": {
+                "value": "35000000",
+                "unit": "INR"
+              }
+            }
+          },
+          "tags": [
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Deposit Configuration",
+                "code": "DEPOSIT_CONFIGURATION"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "PAYOUT_FREQUENCY"
+                  },
+                  "value": "QUARTERLY"
+                },
+                {
+                  "descriptor": {
+                    "code": "MATURITY_INSTRUCTION"
+                  },
+                  "value": "RENEW_PRINCIPAL"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "fulfillments": [
+        {
+          "id": "ff_dep_01",
+          "type": "DEPOSIT",
+          "customer": {
+            "person": {
+              "id": "pan:rkspm4417c",
+              "creds": [
+                {
+                  "id": "RKSPM4417C",
+                  "type": "PAN"
+                }
+              ]
+            },
+            "contact": {
+              "phone": "9812345678",
+              "email": "investor@example.com"
+            }
+          },
+          "agent": {
+            "organization": {
+              "creds": [
+                {
+                  "id": "api.buyerapp.com",
+                  "type": "ONDC_SUBSCRIBER_ID"
+                },
+                {
+                  "id": "DIST-99213",
+                  "type": "DISTRIBUTOR_CODE"
+                }
+              ]
+            }
+          },
+          "stops": [
+            {
+              "time": {
+                "label": "TENURE",
+                "duration": "P550D"
+              }
+            }
+          ]
+        }
+      ],
+      "quote": {
+        "id": "quote_fd_35cr_550d_680"
+      },
+      "tags": [
+        {
+          "display": false,
+          "descriptor": {
+            "name": "BAP Terms of Engagement",
+            "code": "BAP_TERMS"
+          },
+          "list": [
+            {
+              "descriptor": {
+                "name": "Static Terms (Transaction Level)",
+                "code": "STATIC_TERMS"
+              },
+              "value": "https://buyerapp.com/legal/ondc:fis15/static_terms?v=0.1"
+            },
+            {
+              "descriptor": {
+                "name": "Offline Contract",
+                "code": "OFFLINE_CONTRACT"
+              },
+              "value": "true"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

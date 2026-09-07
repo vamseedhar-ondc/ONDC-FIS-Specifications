@@ -1,0 +1,1176 @@
+openapi: 3.0.0
+info:
+  title: ONDC FIS15 — On Update API
+  description: >-
+    BPP → BAP servicing outcome. Answers each /update, and answers it in one of
+    three ways depending on what was asked for, never on issuer preference.
+
+    APPLIED, ISSUED, OR REFUSED. A payment retry, a maturity-instruction change
+    and a document request are APPLIED here and are complete when this call
+    lands. A nominee change ISSUES A FORM and is complete only when the
+    unsolicited /on_status reports the submission — the same two-step the /init
+    chain uses, for the same reason: the values are private and belong on the
+    issuer's own interface. Anything the issuer will not do is REFUSED in the
+    error envelope, with no order.
+
+    THE RESPONSE IS AS NARROW AS THE REQUEST. /update names one target and
+    /on_update answers about that target, plus SERVICING_STATUS, plus the order
+    handle. It does not restate the deposit. A buyer app rendering a servicing
+    screen composes it from what it already holds and what arrives here, exactly
+    as it does at /on_confirm.
+
+    SERVICING_STATUS IS THE ONE GROUP EVERY SHAPE CARRIES. It repeats, one group
+    per servicing action, and it accumulates for the life of the deposit — so a
+    buyer app can read the whole servicing history off any single response,
+    the way ONBOARDING_STATUS gives it the whole onboarding history.
+
+    THE PAYMENT LEDGER STAYS APPEND-ONLY. A retry does not rewrite the entry
+    that failed; it appends a new one with a new id. The failed entry keeps its
+    FAILED status, because it did fail, and the pair is what a reconciliation
+    reads.
+
+    Domain code ONDC:FIS15 and error range 832001-832042 are requested from
+    ONDC and not yet allocated.
+  version: 0.2.0
+
+servers:
+  - url: https://api.buyerapp.com/ondc
+    description: BAP (buyer app) callback endpoint
+
+paths:
+  /on_update:
+    post:
+      summary: Apply the change, issue the form, or refuse
+      description: >-
+        Returns an ACK/NACK synchronously. Which of the three shapes arrives is
+        determined by the target the buyer app declared, so a conformant buyer
+        app knows before it sends whether to expect a completed change or a form
+        to render.
+      operationId: onUpdate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnUpdateRequest'
+            examples:
+              V1_fresh_payment_url:
+                summary: 'Applied — a second netbanking link, and the ledger now has two entries'
+                description: >-
+                  pmt_5501 keeps FAILED; pmt_5502 is appended NOT-PAID with a
+                  fresh single-use URL and a fresh quote.ttl. The quote id and
+                  price are untouched — a retry buys time, not a new rate.
+                value:
+                  $ref: '../examples/on_update/fis15-on_update-01-fresh-payment-url.json'
+
+              V2_nominee_form:
+                summary: 'Issued — the nominee form, on the issuer''s interface'
+                description: >-
+                  xinput.required true with a single-step head. Nothing about
+                  the nominee is decided yet; SERVICING_STATUS is IN_PROGRESS
+                  and the outcome will arrive as an unsolicited /on_status.
+                value:
+                  $ref: '../examples/on_update/fis15-on_update-02-nominee-form.json'
+
+              V3_instruction_applied:
+                summary: 'Applied — auto-renew takes effect at maturity'
+                description: >-
+                  The updated DEPOSIT_INFORMATION comes back FULL, because this
+                  is the issuer stating the contract and the issuer always states
+                  it whole. EFFECTIVE_FROM is the maturity date, not today —
+                  the instruction changes what happens then, not now.
+                value:
+                  $ref: '../examples/on_update/fis15-on_update-03-instruction-applied.json'
+
+              V4_documents:
+                summary: 'Applied — the interest certificate, as a URL'
+                description: >-
+                  documents[] carries what was asked for and nothing else. Note
+                  the deposit itself is not restated.
+                value:
+                  $ref: '../examples/on_update/fis15-on_update-04-documents.json'
+
+              V5_chain_abandoned:
+                summary: 'Applied — the chain is closed, and there is still no order id'
+                description: >-
+                  status CANCELLED with no order.id, correlated by
+                  transaction_id alone. Terminal: nothing further will be pushed
+                  on this transaction.
+                value:
+                  $ref: '../examples/on_update/fis15-on_update-05-chain-abandoned.json'
+
+              V6_rejected:
+                summary: 'Refused — 832038, past the maturity-instruction cut-off'
+                description: >-
+                  context plus error, no order. The investor asked seven days
+                  before maturity and the issuer needs fifteen.
+                value:
+                  $ref: '../examples/on_update/fis15-on_update-06-rejected-832038.json'
+      responses:
+        default:
+          description: ACK / NACK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ack'
+
+components:
+  schemas:
+
+    OnUpdateRequest:
+      type: object
+      additionalProperties: false
+      required: [context]
+      oneOf:
+        - required: [message]
+          not: { required: [error] }
+        - required: [error]
+          not: { required: [message] }
+      description: >-
+        message XOR error. A serviced order and a refusal never travel together.
+      properties:
+        context:
+          allOf:
+            - $ref: '#/components/schemas/Context'
+            - type: object
+              required: [action, bpp_id, bpp_uri]
+              properties:
+                action:
+                  enum: [on_update]
+        message:
+          type: object
+          additionalProperties: false
+          required: [order]
+          properties:
+            order:
+              $ref: '#/components/schemas/Order'
+        error:
+          $ref: '#/components/schemas/Error'
+
+    Context:
+      type: object
+      additionalProperties: false
+      required:
+        - location
+        - domain
+        - action
+        - version
+        - bap_id
+        - bap_uri
+        - bpp_id
+        - bpp_uri
+        - transaction_id
+        - message_id
+        - timestamp
+        - ttl
+      properties:
+        location:
+          type: object
+          additionalProperties: false
+          required: [country, city]
+          properties:
+            country:
+              type: object
+              properties:
+                code: { type: string, enum: [IND] }
+            city:
+              type: object
+              properties:
+                code: { type: string, enum: ['*'] }
+        domain:  { type: string, enum: [ONDC:FIS15] }
+        action:  { type: string, enum: [on_update] }
+        version: { type: string, example: 0.2.0 }
+        bap_id:  { type: string }
+        bap_uri: { type: string, format: uri }
+        bpp_id:  { type: string }
+        bpp_uri: { type: string, format: uri }
+        transaction_id:
+          type: string
+          format: uuid
+          description: Echoes the /update being answered.
+        message_id:
+          type: string
+          format: uuid
+          description: >-
+            Echoes the message_id of the /update being answered. Unlike
+            /on_status, this call is never unsolicited — a form outcome comes
+            back on /on_status, not here.
+        timestamp: { type: string, format: date-time }
+        ttl:       { type: string, example: PT10M }
+
+    Order:
+      type: object
+      additionalProperties: false
+      required: [status, provider, fulfillments, tags]
+      description: >-
+        id is conditional, on exactly the same reasoning /on_status uses. An
+        abandoned chain never had one, so requiring it unconditionally would
+        forbid the message that closes the chain; making it optional everywhere
+        would let a serviced deposit come back without the one handle the buyer
+        app needs. The if/then below is the only correct shape.
+      if:
+        required: [status]
+        properties:
+          status:
+            not: { const: CANCELLED }
+      then:
+        required: [id]
+      properties:
+        id:
+          type: string
+          example: FD-ICICI-20260902-004481
+          description: >-
+            Unchanged since /on_confirm. Absent only when the response closes an
+            onboarding chain that never had one.
+        status:
+          type: string
+          enum: [ACCEPTED, ACTIVE, CANCELLED]
+          description: >-
+            THE ORDER'S STATE AFTER THE CHANGE, not a description of the change.
+            ACCEPTED on a payment retry, because the deposit still does not
+            exist. ACTIVE on every servicing action against a booked deposit.
+            CANCELLED only when an onboarding chain was abandoned, and then with
+            no id. Servicing never moves an order to COMPLETED — maturity does
+            that, and it is reported on /on_status.
+        provider:
+          type: object
+          additionalProperties: false
+          required: [id]
+          properties:
+            id:         { type: string }
+            descriptor: { $ref: '#/components/schemas/Descriptor' }
+        ref_order_ids:
+          type: array
+          items: { type: string }
+        items:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/Item'
+          description: >-
+            Present only when the change touched the item — that is, on the
+            DEPOSIT_INFORMATION target, where the full updated group comes back.
+        fulfillments:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/Fulfillment'
+        payments:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Payment'
+          description: >-
+            THE WHOLE LEDGER, present only on a payment retry. Append-only —
+            the failed attempt keeps its FAILED status and the new attempt is
+            added alongside it. Absent on every other target, because nothing
+            about money changed.
+        quote:
+          $ref: '#/components/schemas/Quote'
+        documents:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Document'
+          description: >-
+            Present only on the order.documents target, carrying what was
+            requested. The same Document shape /on_status uses.
+        cancellation_terms:
+          type: array
+          items:
+            $ref: '#/components/schemas/CancellationTerm'
+          description: >-
+            Restated on a payment retry, because the retry re-opens the window
+            in which the investor may still walk away and the terms of doing so
+            must be on screen when they do.
+        xinput:
+          $ref: '#/components/schemas/XInput'
+        tags:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/TagGroup'
+          description: Carries BPP_TERMS.
+
+    Item:
+      type: object
+      additionalProperties: false
+      required: [id, descriptor, fulfillment_ids, quantity, tags]
+      properties:
+        id: { type: string }
+        descriptor:
+          type: object
+          required: [name, code]
+          properties:
+            name: { type: string }
+            code: { type: string, enum: [DEPOSIT_PRODUCT, SERVICE] }
+        fulfillment_ids:
+          type: array
+          minItems: 1
+          items: { type: string }
+        quantity:
+          type: object
+          additionalProperties: false
+          required: [selected]
+          properties:
+            selected:
+              type: object
+              additionalProperties: false
+              required: [measure]
+              properties:
+                measure:
+                  type: object
+                  additionalProperties: false
+                  required: [value, unit]
+                  properties:
+                    value: { type: string }
+                    unit:  { type: string, enum: [INR] }
+        tags:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/TagGroup'
+          description: >-
+            DEPOSIT_INFORMATION, FULL. The buyer app sent a partial group; the
+            issuer answers with the whole contract as it now stands, because the
+            issuer always states it whole and because the buyer app must be able
+            to diff the one field that moved against everything that did not.
+
+    Fulfillment:
+      type: object
+      additionalProperties: false
+      required: [id, type, state, customer, tags]
+      description: >-
+        The deposit's own fulfillment, unchanged by the servicing action. type
+        stays DEPOSIT and the state is whatever the deposit is actually in;
+        neither describes the change. SERVICING_STATUS does that.
+      properties:
+        id:   { type: string }
+        type: { type: string, enum: [DEPOSIT] }
+        state:
+          type: object
+          additionalProperties: false
+          required: [descriptor]
+          properties:
+            descriptor:
+              type: object
+              additionalProperties: false
+              required: [code]
+              properties:
+                name: { type: string }
+                code:
+                  type: string
+                  enum: [PENDING, ACTIVE, CANCELLED]
+                  description: >-
+                    PENDING on a payment retry, ACTIVE on servicing a booked
+                    deposit, CANCELLED on an abandoned chain. A servicing call
+                    cannot produce MATURED, FAILED or CLOSED_PREMATURE — those
+                    are lifecycle events and arrive on /on_status.
+        customer:
+          type: object
+          additionalProperties: false
+          required: [person]
+          properties:
+            person:
+              type: object
+              additionalProperties: false
+              required: [id]
+              properties:
+                id: { type: string, example: pan:abcpk1234f }
+        stops:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            additionalProperties: false
+            required: [time]
+            properties:
+              time:
+                type: object
+                additionalProperties: false
+                properties:
+                  label:     { type: string, enum: [TENURE, VALUE_DATE, MATURITY_DATE] }
+                  duration:  { type: string }
+                  timestamp: { type: string, format: date-time }
+          description: >-
+            Sent when the response needs to be read against a date — chiefly on
+            a maturity-instruction change, where MATURITY_DATE is what
+            EFFECTIVE_FROM refers to. Dates live here and in no tag, as
+            everywhere else in FIS15.
+        tags:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/TagGroup'
+          description: >-
+            SERVICING_STATUS always. NOMINEE_INFORMATION once a nominee change
+            has resolved, PAYMENT_INSTRUCTION on a push-rail retry,
+            PAYMENT_ADVICE where the accepted rail differs from the one asked
+            for, CANCELLATION_INFO on an abandoned chain.
+          contains:
+            type: object
+            required: [descriptor]
+            properties:
+              descriptor:
+                type: object
+                required: [code]
+                properties:
+                  code: { const: SERVICING_STATUS }
+
+    Payment:
+      type: object
+      additionalProperties: false
+      required: [id, collected_by, status, type, params, tags]
+      description: >-
+        One entry in the append-only ledger. The instruction for the NEW attempt
+        lives where the rail dictates, on exactly the same branch /on_confirm
+        defines — a buyer app switches on MODE and does not probe fields.
+      properties:
+        id:
+          type: string
+          description: >-
+            Minted per attempt. The retry gets a NEW id; reusing the failed
+            attempt's id would collapse two facts into one row and make the
+            ledger unreconcilable.
+        collected_by: { type: string, enum: [BPP] }
+        status:
+          type: string
+          enum: [NOT-PAID, PAID, FAILED]
+          description: >-
+            The new attempt is NOT-PAID. Earlier entries keep whatever they
+            terminated at, and the issuer must not rewrite them.
+        type: { type: string, enum: [PRE_FULFILLMENT] }
+        url:
+          type: string
+          format: uri
+          description: >-
+            SINGLE-USE bank redirect page, present for NETBANKING on the new
+            attempt. Must NOT be present for IMPS, NEFT or RTGS, and must not be
+            re-sent on a spent entry.
+        params:
+          type: object
+          additionalProperties: false
+          required: [amount, currency]
+          properties:
+            amount:   { type: string }
+            currency: { type: string, enum: [INR] }
+            transaction_id:
+              type: string
+              description: The bank or PG reference, present on an entry that reached PAID.
+            url:
+              type: string
+              description: A upi:// intent string, present when MODE is UPI and AUTH is URI.
+            bank_code:
+              type: string
+              description: The issuer's collection account IFSC. Push rails only.
+            bank_account_number:
+              type: string
+              description: The issuer's collection account, preferably per-order and virtual.
+            source_bank_code:               { type: string }
+            source_bank_account_number:     { type: string }
+            source_virtual_payment_address: { type: string }
+        tags:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/PaymentMethodTagGroup'
+      if:
+        properties:
+          tags:
+            contains:
+              type: object
+              required: [list]
+              properties:
+                list:
+                  type: array
+                  contains:
+                    type: object
+                    required: [descriptor, value]
+                    properties:
+                      descriptor:
+                        type: object
+                        required: [code]
+                        properties:
+                          code: { const: MODE }
+                      value:
+                        type: string
+                        enum: [IMPS, NEFT, RTGS]
+      then:
+        not: { required: [url] }
+
+    Quote:
+      type: object
+      additionalProperties: false
+      required: [id, price, ttl]
+      description: >-
+        UNCHANGED, AND THAT IS THE POINT. Present only on a payment retry, and
+        carrying the id and price minted at the terminal /on_init. What is fresh
+        is the ttl — which since /on_confirm bounds how long the investor has to
+        PAY, not how long a rate is held. An issuer must not restate the price
+        here; the order is ACCEPTED and the rate is struck.
+      properties:
+        id:    { type: string }
+        price: { $ref: '#/components/schemas/Price' }
+        breakup:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            type: object
+            additionalProperties: false
+            required: [item, title, price]
+            properties:
+              item:
+                type: object
+                additionalProperties: false
+                properties:
+                  id:              { type: string }
+                  fulfillment_ids: { type: array, items: { type: string } }
+              title: { type: string, enum: [PRINCIPAL] }
+              price: { $ref: '#/components/schemas/Price' }
+        ttl:
+          type: string
+          example: PT15M
+          description: >-
+            MANDATORY. The fresh payment window. An issuer that will not extend
+            the window refuses with 832039 rather than returning a lapsed one.
+
+    Document:
+      type: object
+      additionalProperties: false
+      required: [descriptor, mime_type, url]
+      properties:
+        descriptor:
+          type: object
+          additionalProperties: false
+          required: [name, code]
+          properties:
+            name: { type: string }
+            code:
+              type: string
+              enum: [FD_RECEIPT, INTEREST_CERTIFICATE, FORM_16A, TDS_CERTIFICATE]
+        mime_type: { type: string, enum: [application/pdf, text/html] }
+        url:
+          type: string
+          format: uri
+          description: >-
+            Should be short-lived and single-use. An interest certificate names
+            the investor and states what they earned; a permanent unauthenticated
+            URL is a disclosure waiting to happen.
+
+    CancellationTerm:
+      type: object
+      additionalProperties: false
+      required: [fulfillment_state]
+      properties:
+        fulfillment_state:
+          type: object
+          additionalProperties: false
+          required: [descriptor]
+          properties:
+            descriptor:
+              type: object
+              additionalProperties: false
+              required: [code]
+              properties:
+                name: { type: string }
+                code:
+                  type: string
+                  enum: [PENDING, INITIATED, ACTIVE, MATURED, CLOSED_PREMATURE, FAILED, CANCELLED]
+        reason_required: { type: boolean }
+        cancellation_fee:
+          type: object
+          additionalProperties: false
+          properties:
+            percentage: { type: string }
+            amount:     { $ref: '#/components/schemas/Price' }
+
+    XInput:
+      type: object
+      additionalProperties: false
+      required: [required]
+      description: >-
+        Present only on a form-driven target. Identical in shape and meaning to
+        the /on_init chain driver, deliberately — a buyer app renders a servicing
+        form with the code it already wrote for onboarding.
+      properties:
+        required:
+          type: boolean
+          description: >-
+            true — the change is not made until the form is submitted. A
+            servicing form is always required when issued; there is no optional
+            servicing step, because the investor asked for this one.
+        head:
+          type: object
+          additionalProperties: false
+          required: [index, headings]
+          properties:
+            index:
+              type: object
+              additionalProperties: false
+              required: [min, cur, max]
+              properties:
+                min: { type: integer, enum: [0] }
+                cur: { type: integer }
+                max: { type: integer }
+            headings:
+              type: array
+              minItems: 1
+              items:
+                type: string
+                enum: [NOMINEE]
+              description: >-
+                One heading per step. Only NOMINEE is form-driven in this
+                revision, so the chain is one step long and max is 0 — but the
+                head is still sent, so that a later servicing form with more
+                steps does not change the shape.
+        form:
+          type: object
+          additionalProperties: false
+          required: [id]
+          properties:
+            id: { type: string }
+            url:
+              type: string
+              format: uri
+            mime_type:
+              type: string
+              enum: [text/html, application/html]
+              description: >-
+                application/html is a browser REDIRECT, and its outcome returns
+                both on the browser callback and on an unsolicited /on_status.
+                Trust the /on_status, as during onboarding.
+        form_response:
+          type: object
+          additionalProperties: false
+          properties:
+            status:        { type: string, enum: [SUBMITTED, SUCCESS, FAILED] }
+            submission_id: { type: string }
+
+    Price:
+      type: object
+      additionalProperties: false
+      required: [currency, value]
+      properties:
+        currency: { type: string, enum: [INR] }
+        value:    { type: string }
+
+    PaymentMethodTagGroup:
+      type: object
+      additionalProperties: false
+      required: [descriptor, list]
+      properties:
+        display: { type: boolean, default: false }
+        descriptor:
+          type: object
+          additionalProperties: false
+          required: [code]
+          properties:
+            name: { type: string }
+            code: { const: PAYMENT_METHOD }
+        list:
+          type: array
+          minItems: 1
+          maxItems: 2
+          items:
+            oneOf:
+              - type: object
+                additionalProperties: false
+                required: [descriptor, value]
+                properties:
+                  descriptor:
+                    type: object
+                    additionalProperties: false
+                    required: [code]
+                    properties:
+                      name: { type: string }
+                      code: { const: MODE }
+                  value:   { type: string, enum: [NETBANKING, UPI, IMPS, NEFT, RTGS] }
+                  display: { type: boolean }
+              - type: object
+                additionalProperties: false
+                required: [descriptor, value]
+                properties:
+                  descriptor:
+                    type: object
+                    additionalProperties: false
+                    required: [code]
+                    properties:
+                      name: { type: string }
+                      code: { const: AUTH }
+                  value:   { type: string, enum: [URI, COLLECT] }
+                  display: { type: boolean }
+
+    TagGroup:
+      type: object
+      additionalProperties: false
+      required: [descriptor, list]
+      properties:
+        display:    { type: boolean, default: false }
+        descriptor: { $ref: '#/components/schemas/Descriptor' }
+        list:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Tag'
+
+    Tag:
+      type: object
+      additionalProperties: false
+      required: [descriptor, value]
+      properties:
+        descriptor: { $ref: '#/components/schemas/Descriptor' }
+        value:      { type: string }
+        display:    { type: boolean }
+
+    Descriptor:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string }
+        code: { type: string }
+
+    Error:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          pattern: '^8320[0-4][0-9]$'
+        message: { type: string }
+
+    Ack:
+      type: object
+      properties:
+        message:
+          type: object
+          properties:
+            ack:
+              type: object
+              properties:
+                status: { type: string, enum: [ACK, NACK] }
+        error:
+          $ref: '#/components/schemas/Error'
+
+  x-ondc-fis15:
+
+    shapes:
+      description: >-
+        Three structurally distinct responses. Which one arrives is decided by
+        the target the BUYER APP declared, not by the seller — which is what
+        lets a buyer app know, before it sends, whether to expect a completed
+        change or a form.
+      list:
+        - id: 1
+          name: Applied
+          targets: [order.payments, 'order.items[].tags.DEPOSIT_INFORMATION', order.documents, order.status]
+          xinput: absent
+          servicing_status: SUCCESSFUL
+          carries: >-
+            The changed thing and nothing else — the appended payments entry and
+            a fresh quote.ttl, or the full updated DEPOSIT_INFORMATION, or
+            documents[], or status CANCELLED with CANCELLATION_INFO.
+        - id: 2
+          name: Form issued
+          targets: ['order.fulfillments[].tags.NOMINEE_INFORMATION']
+          xinput: required true, with a form url
+          servicing_status: IN_PROGRESS
+          carries: >-
+            The form and the servicing record. Nothing is changed yet; the
+            outcome arrives on an unsolicited /on_status.
+        - id: 3
+          name: Refused
+          targets: [any]
+          xinput: absent
+          servicing_status: absent
+          carries: context plus error, and NO message.order.
+
+    tag-groups:
+
+      SERVICING_STATUS:
+        level: fulfillment
+        required: mandatory
+        cardinality: REPEATED — one group per servicing action
+        description: >-
+          ADDED IN THIS REVISION, and the group that makes servicing legible.
+          It answers the three things a buyer app has to render — what was
+          asked, where it got to, and when it takes effect — without inventing a
+          fulfillment for something that fulfils nothing.
+
+          It ACCUMULATES. A group is added per servicing action and kept for the
+          life of the deposit, so a single response carries the whole servicing
+          history, the way ONBOARDING_STATUS carries the whole onboarding
+          history. An issuer that returns only the latest action forces the
+          buyer app to maintain a merge, which is the failure mode
+          no-partial-payload was written to avoid on /on_status.
+        list:
+          ACTION:
+            required: mandatory
+            enum:
+              - PAYMENT_RETRY
+              - NOMINEE_UPDATE
+              - MATURITY_INSTRUCTION_UPDATE
+              - DOCUMENT_REQUEST
+              - CHAIN_ABANDONED
+            description: >-
+              One value per update_target. The enum is deliberately named for
+              what the investor did, not for the dot-path they sent.
+          STATUS:
+            required: mandatory
+            enum: [ACCEPTED, IN_PROGRESS, SUCCESSFUL, REJECTED]
+            description: >-
+              IN_PROGRESS is what a form-driven action carries until the
+              /on_status resolves it. ACCEPTED covers an action the issuer has
+              taken on but which needs a downstream system — a retry whose link
+              is minted but not yet live. REJECTED appears only on /on_status,
+              never here, because a refusal at this call uses the error
+              envelope.
+          REQUESTED_AT:
+            required: mandatory
+            type: datetime
+            description: The timestamp of the /update this answers.
+          UPDATED_AT:
+            required: mandatory
+            type: datetime
+          EFFECTIVE_FROM:
+            required: conditional
+            type: date
+            description: >-
+              Mandatory when the change takes effect later than now, which for
+              MATURITY_INSTRUCTION_UPDATE is always — the instruction governs
+              what happens at maturity and changes nothing before it. Omitted
+              when the change is immediate.
+          REFERENCE:
+            required: optional
+            description: >-
+              The issuer's own servicing ticket, for a call centre to act on.
+          REASON:
+            required: conditional
+            description: Mandatory when STATUS is REJECTED.
+
+      DEPOSIT_INFORMATION:
+        level: item
+        required: conditional
+        cardinality: once
+        description: >-
+          FULL, exactly as at /on_init, /confirm and /on_status. Present only on
+          the DEPOSIT_INFORMATION target. The buyer app sent one field; the
+          issuer answers with the whole contract as it now stands, because a
+          servicing screen has to show what the deposit IS, not what moved, and
+          because the buyer app must be able to confirm that only one thing did.
+
+          The field set is the one every issuer-stated DEPOSIT_INFORMATION
+          carries, restated here in full rather than cross-referenced — a group
+          an implementer has to look up in another file is a group they will get
+          wrong, and a conformance checker cannot read prose.
+        list:
+          PRINCIPAL:              { required: mandatory, type: decimal, description: 'Echoes items[].quantity.selected.measure.value.' }
+          TENURE_DAYS:            { required: mandatory, type: integer }
+          INTEREST_RATE:          { required: mandatory, type: decimal, description: 'The contracted rate, % p.a. Fixed for the life of the deposit and never altered by a servicing call.' }
+          ANNUALISED_YIELD:       { required: mandatory, type: decimal }
+          PAYOUT_FREQUENCY:
+            required: mandatory
+            enum: [CUMULATIVE, MONTHLY, QUARTERLY, HALF_YEARLY, ANNUAL]
+            description: >-
+              THE BRANCH KEY, exactly as everywhere else. CUMULATIVE means
+              MATURITY_AMOUNT is principal plus interest, NET_MATURITY_AMOUNT is
+              present and the per-payout fields are absent.
+          COMPOUNDING_FREQUENCY:  { required: mandatory, type: duration, description: 'P0D whenever PAYOUT_FREQUENCY is not CUMULATIVE.' }
+          MATURITY_INSTRUCTION:
+            required: mandatory
+            enum: [CREDIT_TO_BANK, RENEW_PRINCIPAL, RENEW_PRINCIPAL_AND_INTEREST]
+            description: >-
+              THE NEW INSTRUCTION, and the only field in this group whose value
+              may differ from the last response. Every other code must be
+              byte-identical to what /on_status last reported; a difference is
+              832042, and the buyer app is expected to check.
+
+              RENEW_PRINCIPAL_AND_INTEREST is meaningful only on a CUMULATIVE
+              deposit. An issuer that cannot carry out the instruction refuses
+              with 832038 rather than accepting it and quietly doing something
+              else at maturity.
+          MATURITY_AMOUNT:
+            required: mandatory
+            type: decimal
+            description: >-
+              UNCHANGED BY A RENEWAL INSTRUCTION. It is what THIS contract pays
+              at maturity, not a projection of what a renewed deposit would be
+              worth — that is priced when the renewal is booked, at the card rate
+              then in force.
+          TOTAL_INTEREST:         { required: mandatory, type: decimal }
+          INTEREST_PER_PAYOUT:    { required: conditional, type: decimal, description: 'Mandatory when PAYOUT_FREQUENCY is not CUMULATIVE.' }
+          PAYOUT_COUNT:           { required: conditional, type: integer, description: 'Mandatory when PAYOUT_FREQUENCY is not CUMULATIVE.' }
+          FINAL_STUB_INTEREST:    { required: conditional, type: decimal, description: 'Mandatory when PAYOUT_FREQUENCY is not CUMULATIVE.' }
+          TDS_ESTIMATED:          { required: mandatory, type: decimal }
+          NET_MATURITY_AMOUNT:    { required: conditional, type: decimal, description: 'Mandatory when PAYOUT_FREQUENCY is CUMULATIVE.' }
+          PROJECTION_BASIS:       { required: optional }
+
+      NOMINEE_INFORMATION:
+        level: fulfillment
+        required: conditional
+        description: >-
+          Present only on a nominee target, and then only carrying what the
+          issuer holds NOW — the nomination being replaced, not the one being
+          proposed. The new values do not exist until the form resolves, and
+          they arrive on /on_status.
+        list:
+          NOMINATION_OPTED:      { required: mandatory, enum: ['true', 'false'] }
+          NOMINEE_COUNT:         { required: conditional, type: integer }
+          NOMINEE_NAME_MASKED:   { required: optional }
+          NOMINEE_RELATIONSHIP:  { required: optional }
+          ALLOCATION_PERCENTAGE: { required: optional, type: decimal }
+
+      PAYMENT_INSTRUCTION:
+        level: fulfillment
+        required: conditional
+        description: >-
+          Mandatory on a push-rail retry, for the same reason it is mandatory at
+          /on_confirm — the investor acts outside any interface the issuer
+          controls and needs human-readable instructions. A retry must issue a
+          FRESH reference; re-sending the first attempt's makes the second credit
+          indistinguishable from the first.
+        list:
+          INSTRUCTION_TYPE:  { required: mandatory, enum: [CREDIT_TO_VIRTUAL_ACCOUNT, CREDIT_TO_POOL_ACCOUNT] }
+          BENEFICIARY_NAME:  { required: mandatory }
+          PAYMENT_REFERENCE: { required: conditional, description: 'Mandatory when INSTRUCTION_TYPE is CREDIT_TO_POOL_ACCOUNT.' }
+          CREDIT_BY:         { required: mandatory, type: datetime, description: 'Derived from the fresh quote.ttl.' }
+          INSTRUCTION_NOTE:  { required: optional }
+
+      PAYMENT_ADVICE:
+        level: fulfillment
+        required: conditional
+        description: >-
+          Mandatory when the rail the issuer will accept for the retry differs
+          from the one the buyer app asked to retry on. Same group, same
+          obligation and same reason codes as at /on_confirm — substituting
+          silently is a conformance failure wherever it happens.
+        list:
+          PROPOSED_MODE:  { required: mandatory, enum: [NETBANKING, UPI, IMPS, NEFT, RTGS] }
+          ACCEPTED_MODE:  { required: mandatory, enum: [NETBANKING, UPI, IMPS, NEFT, RTGS] }
+          REASON_CODE:
+            required: mandatory
+            enum:
+              - AMOUNT_EXCEEDS_RAIL_LIMIT
+              - AMOUNT_BELOW_RAIL_MINIMUM
+              - RAIL_NOT_SUPPORTED
+              - RAIL_TEMPORARILY_UNAVAILABLE
+          REASON_MESSAGE: { required: optional }
+
+      PAYMENT_METHOD:
+        level: payment
+        required: conditional
+        cardinality: once per payment entry
+        description: >-
+          One group on every entry in the ledger this call returns, including
+          the entry that failed — the ledger is append-only, so the rail a spent
+          attempt used stays readable. Mandatory whenever payments is present,
+          which is the order.payments target and nothing else.
+        list:
+          MODE:
+            required: mandatory
+            enum: [NETBANKING, UPI, IMPS, NEFT, RTGS]
+          AUTH:
+            required: conditional
+            enum: [URI, COLLECT]
+            description: Mandatory when MODE is UPI; not permitted otherwise.
+
+      CANCELLATION_INFO:
+        level: fulfillment
+        required: conditional
+        description: >-
+          Mandatory when the response closes an abandoned chain. Echoes what the
+          buyer app declared, with CANCELLED_BY as sent — the issuer records who
+          ended it, and does not substitute itself.
+        list:
+          CANCELLED_BY:   { required: mandatory, enum: [BAP, BPP, INVESTOR] }
+          REASON_CODE:    { required: mandatory }
+          REASON_MESSAGE: { required: optional }
+
+      BPP_TERMS:
+        level: order
+        required: mandatory
+        description: >-
+          The seller's terms, restated on every BPP-to-BAP call so the terms in
+          force are readable from any single response.
+        list:
+          STATIC_TERMS:     { required: mandatory, type: uri }
+          OFFLINE_CONTRACT: { required: mandatory, enum: ['true', 'false'] }
+
+    rules:
+      - TAG LEVELS ARE FIXED ACROSS THE JOURNEY. item carries the deposit's
+        economics — DEPOSIT_INFORMATION, full, as the issuer always states it.
+        fulfillment carries the investor and the servicing — SERVICING_STATUS,
+        NOMINEE_INFORMATION, PAYMENT_INSTRUCTION, PAYMENT_ADVICE,
+        CANCELLATION_INFO. payment carries money movement. order carries only
+        BPP_TERMS.
+      - Dates live in stops, never in a tag. EFFECTIVE_FROM in SERVICING_STATUS
+        is not an exception — it dates the ACTION, not the deposit, and the
+        deposit's own MATURITY_DATE that it refers to is in stops.
+      - SERVICING_STATUS is mandatory on every success shape and is
+        schema-enforced by a contains on the fulfillment tags.
+      - SERVICING_STATUS ACCUMULATES. Send every servicing action this deposit
+        has seen, not only the latest — a partial history forces a merge the
+        buyer app cannot heal after a missed message.
+      - The response answers the declared target and does not restate the
+        deposit. Only the DEPOSIT_INFORMATION target returns the item.
+      - A payment retry APPENDS. The failed entry keeps its FAILED status and
+        its id; the new attempt gets a new id. Never rewrite a terminal entry.
+      - A payment retry does not restate the price. quote.id and quote.price are
+        the ones minted at the terminal /on_init; only quote.ttl is fresh, and
+        since /on_confirm that ttl bounds the PAYMENT window, not a rate.
+      - Switch on PAYMENT_METHOD.MODE to find the new instruction, exactly as at
+        /on_confirm. payments[].url must NOT be present for IMPS, NEFT or RTGS —
+        schema-barred here too.
+      - A push-rail retry must carry a FRESH PAYMENT_REFERENCE. Reusing the
+        first attempt's reference makes two credits indistinguishable, which is
+        the reconciliation failure a virtual account exists to prevent.
+      - Nominee values are not returned by this call. NOMINEE_INFORMATION here
+        describes what is being REPLACED; the new nomination arrives on the
+        unsolicited /on_status once the form resolves.
+      - A servicing form is always xinput.required true. There is no optional
+        servicing step — the investor asked for it.
+      - order.id is absent only when status is CANCELLED on an abandoned chain,
+        and that response is TERMINAL. Nothing further is pushed on that
+        transaction_id.
+      - Servicing never moves an order to COMPLETED and never moves a
+        fulfillment to MATURED, FAILED or CLOSED_PREMATURE. Those are lifecycle
+        events and belong to /on_status.
+      - A refusal is context plus error with NO order. There is no REJECTED
+        servicing status on this call — the error envelope carries it, on the
+        same reasoning that removed the REJECTED order status from /on_confirm.
+      - This call is NEVER unsolicited. Every message_id echoes an /update. An
+        issuer with something to say that nobody asked about sends /on_status.
+
+    decisions:
+      servicing-status-not-fulfillment:
+        change: >-
+          Servicing progress is reported in a repeated SERVICING_STATUS tag
+          group, not by giving the fulfillment a NOMINEE_UPDATE or
+          MATURITY_INSTRUCTION_UPDATE type.
+        why: >-
+          A fulfillment is something being delivered, and the deposit is the only
+          thing this order delivers — it goes on being delivered throughout a
+          nominee change. Retyping the fulfillment would also mean the same
+          order id reports type NOMINEE_UPDATE here and DEPOSIT on the next
+          /on_status, which is a contradiction a buyer app would have to code
+          around. A repeated tag group gives the same information plus a history,
+          and reuses the shape ONBOARDING_STATUS already established.
+      three-shapes-chosen-by-the-buyer:
+        change: >-
+          Which response shape arrives is a function of update_target alone, not
+          of issuer policy.
+        why: >-
+          /on_init's four shapes are seller-driven, and they have to be — only
+          the issuer knows how many forms an investor needs. Servicing is the
+          opposite: the buyer app knows exactly what it asked for, and an issuer
+          that could answer a maturity-instruction change with a form would make
+          every servicing call a two-branch guess. Fixing the mapping makes the
+          buyer app's code straight-line.
+      full-group-back-partial-group-in:
+        change: >-
+          /update sends a partial DEPOSIT_INFORMATION and /on_update returns the
+          full one.
+        why: >-
+          The asymmetry follows the authority rule the whole spec is built on. A
+          CONFIGURATION is asked for and may be partial; INFORMATION is stated,
+          and the issuer states the contract whole or not at all. It also gives
+          the buyer app the diff it needs to prove only one field moved.
+      retry-appends-never-rewrites:
+        change: >-
+          payments is minItems 1 with no maximum, and the failed attempt is
+          returned alongside the new one.
+        why: >-
+          /on_status already declares the ledger append-only and models a refund
+          as a second entry. A retry is the same shape of event and must not be
+          modelled differently just because it happens on a different call — an
+          issuer that rewrote pmt_5501 from FAILED to NOT-PAID would destroy the
+          record that a debit was attempted and lost.
+        cost: >-
+          /on_confirm caps payments at exactly one and this call does not, so the
+          two responses carrying the same array have different cardinality
+          rules. That is correct — /on_confirm mints the first entry and there
+          cannot be a second — but it is worth stating so an implementer does not
+          copy the cap across.
+      no-reprice-on-retry:
+        change: quote.price is barred from moving; only quote.ttl is fresh.
+        why: >-
+          The order is ACCEPTED. Allowing a reprice between a failed payment and
+          its retry would let an issuer move the number after the investor
+          signed, which is exactly what terminal-binding-quote prevents at the
+          other end of the journey. An issuer unwilling to hold the price
+          refuses with 832039 and the investor rebooks knowingly.
+        cost: >-
+          This is the one invariant in these two calls that JSON Schema cannot
+          police — quote.price is a free string and the schema has nothing to
+          compare it against. It is a conformance rule and a buyer-app
+          obligation: diff quote.id and quote.price against the terminal
+          /on_init before rendering a retry, and treat a difference as 832042
+          rather than as a new price to show the investor.
+      never-unsolicited:
+        change: >-
+          /on_update is always a reply. Form outcomes go to /on_status.
+        why: >-
+          /on_status is already the unsolicited channel and buyer apps have one
+          handler for it. Making a second callback also arrive unasked would
+          double that surface for no gain, and would leave a buyer app unable to
+          tell which handler owns a nominee outcome.
+
+    open-points:
+      servicing-status-not-echoed-elsewhere:
+        status: resolved
+        question: >-
+          SERVICING_STATUS is defined here and must be carried on every
+          subsequent /on_status for the accumulation rule to mean anything, but
+          FIS15_on_status_API.yaml did not declare the group.
+        decision: >-
+          SERVICING_STATUS was added to /on_status as conditional and repeated,
+          with the same field set and the same enums — verified field-for-field,
+          because two copies of a group is how they drift. /on_status also gained
+          the accumulation rule and a when-it-fires trigger for a resolved
+          servicing form, and example T6 shows the nominee form coming back.
+      form-outcome-crosses-calls:
+        status: resolved
+        question: >-
+          A nominee change starts on /on_update and finishes on /on_status, and
+          nothing correlated the two beyond transaction_id — which for a
+          three-year deposit has by then been reused for many things.
+        decision: >-
+          SERVICING_STATUS.REFERENCE is minted here and /on_status now carries a
+          rule requiring it forward unchanged, so a buyer app matches a form
+          outcome to the action that requested it on the reference rather than on
+          the transaction id. Examples V2 and T6 thread SRV-004481-0002 across
+          the two calls.
+      no-retry-ceiling-published:
+        status: unresolved
+        question: >-
+          Nothing tells the buyer app how many retries remain before 832039, so
+          it cannot stop offering a button that will fail.
+        recommendation: >-
+          Add ATTEMPTS_REMAINING to SERVICING_STATUS on the PAYMENT_RETRY action.
+          Cheap, and it turns a guess into a rendered state.
+      document-url-lifetime:
+        status: unresolved
+        question: >-
+          documents[].url is a bare URL with no stated lifetime or
+          authentication, and an interest certificate names the investor and
+          states what they earned.
+        recommendation: >-
+          Require signed, short-lived URLs and state the minimum expiry as a
+          conformance rule, on both this call and /on_status — the same
+          exposure exists there and is currently unstated in both.
+
+    source:
+      derived-from:
+        - FD_ONDC_BRD_Final.docx v1.0, Post-Booking Services
+        - FIS15_on_confirm_API.yaml — the rail branch, the payment object and the single-use URL rule
+        - FIS15_on_init_API.yaml — the xinput chain driver, reused unchanged for servicing forms
+        - FIS15_on_status_API.yaml — the append-only ledger, the Document shape and the conditional order id
+      chains-with:
+        - FIS15_update_API.yaml — the call this answers
+        - FIS15_on_status_API.yaml — resolves every form-driven target and must carry SERVICING_STATUS forward
+      beckn-core: 1.3.0

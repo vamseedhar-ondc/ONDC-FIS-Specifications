@@ -1,0 +1,102 @@
+{
+  "context": {
+    "location": {
+      "country": {
+        "code": "IND"
+      },
+      "city": {
+        "code": "*"
+      }
+    },
+    "domain": "ONDC:FIS15",
+    "action": "cancel",
+    "version": "0.2.0",
+    "bap_id": "api.buyerapp.com",
+    "bap_uri": "https://api.buyerapp.com/ondc",
+    "bpp_id": "api.icicibank.com",
+    "bpp_uri": "https://api.icicibank.com/ondc",
+    "transaction_id": "e9895269-e7a9-4003-9ebc-534413a6017b",
+    "message_id": "9f2d47b1-8c05-4e39-bd72-4a16038e5cf0",
+    "timestamp": "2026-09-02T11:05:28.000Z",
+    "ttl": "PT10M"
+  },
+  "message": {
+    "order_id": "FD-ICICI-20260902-004481",
+    "cancellation_type": "EXECUTE",
+    "cancellation_scope": "ORDER",
+    "cancellation_reason_id": "PAYMENT_NOT_COMPLETED",
+    "descriptor": {
+      "short_desc": "Netbanking failed twice; the investor will rebook later."
+    },
+    "order": {
+      "provider": {
+        "id": "icici_fd"
+      },
+      "fulfillments": [
+        {
+          "id": "ff_dep_01",
+          "type": "DEPOSIT",
+          "customer": {
+            "person": {
+              "id": "pan:abcpk1234f",
+              "creds": [
+                {
+                  "id": "ABCPK1234F",
+                  "type": "PAN"
+                },
+                {
+                  "id": "49.205.12.88",
+                  "type": "IP_ADDRESS"
+                },
+                {
+                  "id": "551094",
+                  "type": "2FA_PHONE_OTP"
+                }
+              ]
+            },
+            "contact": {
+              "phone": "9876543210"
+            }
+          },
+          "agent": {
+            "organization": {
+              "creds": [
+                {
+                  "id": "api.buyerapp.com",
+                  "type": "ONDC_SUBSCRIBER_ID"
+                },
+                {
+                  "id": "DIST-99213",
+                  "type": "DISTRIBUTOR_CODE"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "tags": [
+        {
+          "display": false,
+          "descriptor": {
+            "name": "BAP Terms of Engagement",
+            "code": "BAP_TERMS"
+          },
+          "list": [
+            {
+              "descriptor": {
+                "code": "STATIC_TERMS"
+              },
+              "value": "https://buyerapp.com/legal/ondc:fis15/static_terms?v=0.1"
+            },
+            {
+              "descriptor": {
+                "code": "OFFLINE_CONTRACT"
+              },
+              "value": "true"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

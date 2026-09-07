@@ -1,0 +1,428 @@
+openapi: 3.0.0
+info:
+  title: ONDC FIS15 — Search API
+  description: >-
+    BAP → BPP catalog discovery for fixed deposits. FIS15 does not do live
+    search: the buyer app pulls the full product catalog once, then stays current
+    by polling for deltas or registering for unsolicited pushes. All three
+    variants use the same action and differ only in the INCREMENTAL_PULL tag
+    group.
+
+    The mechanism is inherited unchanged from FIS14, but its weight is different.
+    Mutual-fund scheme attributes change rarely; fixed-deposit rate cards are
+    repriced on the issuer's own schedule, often daily and sometimes intra-day.
+    Variant C (subscribe) is therefore the expected production mode for FIS15,
+    and polling is the fallback — the reverse of the FIS14 emphasis.
+
+    Domain code ONDC:FIS15 and error range 832001-832042 are requested from
+    ONDC and not yet allocated.
+  version: 0.2.0
+
+servers:
+  - url: https://api.issuerbank.com/ondc
+    description: BPP (seller app) endpoint — an SCB, SFB or deposit-accepting NBFC
+
+paths:
+  /search:
+    post:
+      summary: Declare intent to receive the fixed-deposit catalog
+      description: >-
+        Returns an ACK/NACK synchronously. The catalog arrives asynchronously on
+        the BAP's /on_search endpoint — solicited for variants A and B, and
+        unsolicited (no preceding /search) for every subsequent rate change once
+        variant C has registered.
+
+        There is no free-text query, no product filter and no investor context in
+        the FIS15 intent. The catalog is pulled once and cached for all
+        investors; per-investor pricing is resolved later, at /on_select.
+      operationId: search
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+            examples:
+              A_full_pull:
+                summary: 'Variant A — full pull (entire catalog)'
+                description: >-
+                  No INCREMENTAL_PULL group. Run once at onboarding, and again
+                  only to re-baseline a cache the BAP no longer trusts.
+                value:
+                  $ref: '../examples/search/fis15-search-full-pull.json'
+
+              B_delta_pull:
+                summary: 'Variant B — delta pull (changes since a timestamp)'
+                description: >-
+                  INCREMENTAL_PULL.CHANGES_FROM. The fallback when a push was
+                  missed, or for a BAP that has not registered. For a
+                  daily-repricing issuer this should run at least once per
+                  business day, before market open.
+                value:
+                  $ref: '../examples/search/fis15-search-delta-pull.json'
+
+              C_subscribe:
+                summary: 'Variant C — subscribe for unsolicited on_search pushes'
+                description: >-
+                  INCREMENTAL_PULL.REGISTER. The expected production mode for
+                  FIS15. Thereafter the BPP fires /on_search with no preceding
+                  request on every rate-card change.
+                value:
+                  $ref: '../examples/search/fis15-search-subscribe.json'
+      responses:
+        default:
+          description: ACK / NACK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ack'
+
+components:
+  schemas:
+
+    SearchRequest:
+      type: object
+      additionalProperties: false
+      required: [context, message]
+      properties:
+        context:
+          allOf:
+            - $ref: '#/components/schemas/Context'
+            - type: object
+              required: [action]
+              properties:
+                action:
+                  enum: [search]
+        message:
+          type: object
+          additionalProperties: false
+          required: [intent]
+          properties:
+            intent:
+              $ref: '#/components/schemas/Intent'
+
+    Context:
+      type: object
+      additionalProperties: false
+      required:
+        - location
+        - domain
+        - action
+        - version
+        - bap_id
+        - bap_uri
+        - transaction_id
+        - message_id
+        - timestamp
+        - ttl
+      properties:
+        location:
+          type: object
+          additionalProperties: false
+          required: [country, city]
+          properties:
+            country:
+              type: object
+              properties:
+                code: { type: string, enum: [IND] }
+            city:
+              type: object
+              properties:
+                code:
+                  type: string
+                  enum: ['*']
+                  description: >-
+                    Digital booking is location agnostic in MVP. See
+                    x-ondc-fis15.open-points.city-scoping — some NBFC-D deposits
+                    carry state restrictions that this wildcard cannot express.
+        domain:      { type: string, enum: [ONDC:FIS15] }
+        action:      { type: string, enum: [search] }
+        version:
+          type: string
+          example: 0.2.0
+          description: FIS15 spec version, not the beckn core version (1.3.0).
+        bap_id:      { type: string, example: api.buyerapp.com }
+        bap_uri:     { type: string, format: uri, example: https://api.buyerapp.com/ondc }
+        bpp_id:
+          type: string
+          description: >-
+            Omitted on /search — the request goes to the gateway for broadcast.
+            Present on every subsequent action.
+        bpp_uri:     { type: string, format: uri }
+        transaction_id:
+          type: string
+          format: uuid
+          description: >-
+            Constant for the whole journey. Discovery is cached and reused across
+            investors, so a booking journey starts a NEW transaction_id at
+            /select — it does not inherit the one used to pull the catalog.
+        message_id:
+          type: string
+          format: uuid
+          description: Fresh per request/callback pair.
+        timestamp:   { type: string, format: date-time }
+        ttl:         { type: string, example: PT10M, description: ISO 8601 duration }
+
+    Intent:
+      type: object
+      additionalProperties: false
+      required: [category]
+      description: >-
+        Minimal by design. The category code alone says "give me fixed
+        deposits"; the agent creds are the real payload — the issuer uses them to
+        decide empanelment and catalog entitlement. Rate, tenure and amount
+        filtering happen client-side against the cached catalog, because the
+        buyer app needs the whole rate card to drive its compare-and-slider UX
+        anyway.
+      properties:
+        category:
+          type: object
+          additionalProperties: false
+          required: [descriptor]
+          properties:
+            descriptor:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+                  enum: [FIXED_DEPOSIT, FD_OTHER_SERVICES]
+                  description: >-
+                    FIXED_DEPOSIT = the deposit product catalog. This is the only
+                    value in MVP scope.
+                    FD_OTHER_SERVICES = reserved, mirroring FIS14's
+                    MF_OTHER_SERVICES, for standalone KYC discovery. Not required
+                    by the BRD; see x-ondc-fis15.open-points.other-services.
+        fulfillment:
+          type: object
+          additionalProperties: false
+          description: >-
+            Carries the asking buyer app. Treat as mandatory: an issuer cannot
+            decide catalog entitlement without it, and will NACK 832001.
+          properties:
+            agent:
+              type: object
+              properties:
+                organization:
+                  type: object
+                  properties:
+                    creds:
+                      type: array
+                      minItems: 1
+                      items:
+                        $ref: '#/components/schemas/Credential'
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/TagGroup'
+          description: >-
+            BAP_TERMS is mandatory on every call in the journey.
+            INCREMENTAL_PULL is what distinguishes the three search variants.
+
+    Credential:
+      type: object
+      additionalProperties: false
+      required: [id, type]
+      description: >-
+        Deposit distribution has no AMFI-ARN equivalent. Empanelment is a
+        bilateral arrangement between issuer and buyer app, so the issuer's own
+        code is the licensing artefact.
+      properties:
+        id:   { type: string, example: DIST-99213 }
+        type:
+          type: string
+          enum: [ONDC_SUBSCRIBER_ID, DISTRIBUTOR_CODE]
+          description: >-
+            ONDC_SUBSCRIBER_ID is always present and matches context.bap_id.
+            DISTRIBUTOR_CODE is present once the buyer app is empanelled with
+            this issuer; its absence is what a first-contact /search looks like.
+
+    TagGroup:
+      type: object
+      additionalProperties: false
+      required: [descriptor, list]
+      properties:
+        display:
+          type: boolean
+          default: false
+          description: Whether the BAP should render this group to the investor.
+        descriptor:
+          $ref: '#/components/schemas/Descriptor'
+        list:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tag'
+
+    Tag:
+      type: object
+      additionalProperties: false
+      required: [descriptor, value]
+      properties:
+        descriptor: { $ref: '#/components/schemas/Descriptor' }
+        value:      { type: string }
+        display:    { type: boolean }
+
+    Descriptor:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string }
+        code: { type: string }
+
+    Ack:
+      type: object
+      properties:
+        message:
+          type: object
+          properties:
+            ack:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [ACK, NACK]
+        error:
+          type: object
+          properties:
+            code:    { type: string }
+            message: { type: string }
+
+  x-ondc-fis15:
+
+    tag-groups:
+      BAP_TERMS:
+        required: mandatory
+        owner: BAP
+        description: Terms of engagement set by the buyer app. Rides on every call.
+        list:
+          STATIC_TERMS:
+            required: mandatory
+            type: uri
+            example: https://buyerapp.com/legal/ondc:fis15/static_terms?v=0.1
+          OFFLINE_CONTRACT:
+            required: mandatory
+            type: string
+            enum: ['true', 'false']
+      INCREMENTAL_PULL:
+        required: conditional
+        owner: BAP
+        description: >-
+          Absent = full pull. Present with CHANGES_FROM = delta pull.
+          Present with REGISTER = subscribe. CHANGES_FROM and REGISTER are
+          mutually exclusive; sending both is a malformed intent.
+        list:
+          CHANGES_FROM:
+            type: string
+            format: date-time
+            description: >-
+              Return only products whose catalog entry changed after this
+              instant. For FD this is dominated by rate-card movement, not
+              product launches.
+          REGISTER:
+            type: string
+            enum: ['true', 'false']
+            description: >-
+              "true" subscribes to unsolicited on_search; "false" de-registers.
+
+    variants:
+      - id: A
+        name: Full pull
+        intent.tags: [BAP_TERMS]
+        example: ./examples/fis15-search-full-pull.json
+        returns: Entire catalog on /on_search, solicited.
+        when: >-
+          Onboarding a new issuer, or re-baselining a cache the BAP no longer
+          trusts (for example after repeated 832013).
+      - id: B
+        name: Delta pull
+        intent.tags: [INCREMENTAL_PULL.CHANGES_FROM, BAP_TERMS]
+        example: ./examples/fis15-search-delta-pull.json
+        returns: Only the items changed since CHANGES_FROM, solicited.
+        when: >-
+          A push was missed, the BAP has not registered, or a scheduled
+          pre-market-open refresh.
+      - id: C
+        name: Subscribe
+        intent.tags: [INCREMENTAL_PULL.REGISTER, BAP_TERMS]
+        example: ./examples/fis15-search-subscribe.json
+        returns: >-
+          ACK now; thereafter the BPP fires /on_search with no preceding request
+          whenever a rate card or product changes. Same catalog schema, changed
+          items only.
+        when: >-
+          Steady-state production. Expected default for FIS15 given daily
+          repricing.
+
+    rules:
+      - When any rate cell changes, the BPP sends the ENTIRE item — product
+        information, every RATE_CARD_ENTRY, every RATE_ADJUSTMENT and every
+        PAYOUT_OPTION — never a single changed cell. A partial item is not a
+        valid catalog update.
+      - The BAP caches the catalog and prices its UI from it. The catalog rate is
+        INDICATIVE only. /on_select prices a configuration and returns a firm
+        but indicative quote; the terminal /on_init restates it as binding once
+        the investor is identified, which is what lets an ETB investor be
+        offered a preferential rate the public catalog cannot express.
+      - Errors 832011 (product not active), 832013 (no rate card cell matches)
+        and 832017 (offer expired) on a later call mean the cache is stale — run
+        a delta pull before retrying, do not retry the failed call.
+      - Errors 832001 (not empanelled), 832002 (distributor code invalid) and
+        832003 (not authorised for this product) mean no catalog is coming at
+        all — not a retryable per-request failure.
+      - /search is the only action where context.bpp_id and context.bpp_uri are
+        omitted; the gateway broadcasts to registered BPPs.
+      - A BPP whose ISSUER_INFORMATION carries DICGC_INSURED "false" MUST also
+        carry DEPOSIT_INSURANCE_DISCLAIMER in the resulting /on_search. A BAP
+        should reject such an item rather than display an uninsured deposit
+        without the disclosure. The obligation begins at discovery, not at
+        booking.
+
+    open-points:
+      city-scoping:
+        status: unresolved
+        question: >-
+          city.code is fixed at '*'. Some NBFC-D products are restricted by state
+          and some bank products are branch-linked. Should FIS15 allow a real
+          city code, or should product-level eligibility be expressed in the
+          catalog instead?
+        recommendation: >-
+          Keep '*' and add eligibility to the item in /on_search. Location
+          filtering at intent level would fragment the cache.
+      other-services:
+        status: unresolved
+        question: >-
+          FD_OTHER_SERVICES is reserved in the category enum by analogy with
+          FIS14's MF_OTHER_SERVICES. The BRD does not ask for standalone KYC
+          discovery. Keep the enum value, or drop it until a flow needs it?
+      product-eligibility:
+        status: unresolved
+        question: >-
+          An NRI cannot hold a resident FD; a corporate cannot hold a tax-saver
+          FD. Nothing in the current catalog expresses this, so a BAP can display
+          a product the investor will later be rejected for (832004 / 832006).
+        recommendation: >-
+          Add an ELIGIBILITY tag group to the item in /on_search listing
+          permitted INVESTOR_CATEGORY values. Out of scope for /search itself.
+      rate-card-cardinality:
+        status: unresolved
+        question: >-
+          A large issuer could publish several hundred RATE_CARD_ENTRY groups per
+          item. Combined with whole-item pushes on daily repricing, that is a
+          large and frequent payload. Should the network cap it, or define a
+          cell-level delta format?
+        recommendation: >-
+          Soft cap of 200 groups per item with a conformance warning; revisit a
+          delta format only if real catalogs breach it.
+
+    source:
+      derived-from:
+        - FD_ONDC_FIS15_API_Spec.md (sections 3, 4.1, 4.2, 5.1, 5.2, 14, 15)
+        - FD_ONDC_BRD_Final.docx v1.0, Flow > Product Discovery
+        - FIS14_search_API.yaml (structure and the INCREMENTAL_PULL mechanism)
+      reference-implementation:
+        repo: ONDC-FIS-Specifications-release-FIS14-2.1.0
+        files:
+          - api/components/tags/tag-group.yaml (INCREMENTAL_PULL, BAP_TERMS)
+          - api/components/examples/mutual-funds/search/*.json
+          - api/components/docs/stage-discovery.md
+      beckn-core: 1.3.0

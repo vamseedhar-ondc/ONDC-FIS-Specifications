@@ -1,0 +1,99 @@
+{
+  "context": {
+    "location": {
+      "country": {
+        "code": "IND"
+      },
+      "city": {
+        "code": "*"
+      }
+    },
+    "domain": "ONDC:FIS15",
+    "action": "cancel",
+    "version": "0.2.0",
+    "bap_id": "api.buyerapp.com",
+    "bap_uri": "https://api.buyerapp.com/ondc",
+    "bpp_id": "api.icicibank.com",
+    "bpp_uri": "https://api.icicibank.com/ondc",
+    "transaction_id": "7c1f0a34-2b58-4d91-8e6a-1f0c7d2b4a95",
+    "message_id": "3ba7f215-9e40-4c68-b073-1d8a5f04e927",
+    "timestamp": "2027-06-03T07:41:19.000Z",
+    "ttl": "PT10M"
+  },
+  "message": {
+    "order_id": "FD-ICICI-20260902-004523",
+    "cancellation_type": "QUOTE",
+    "cancellation_scope": "DEPOSIT_PARTIAL",
+    "cancellation_reason_id": "FUNDS_NEEDED_EARLY",
+    "order": {
+      "provider": {
+        "id": "icici_fd"
+      },
+      "fulfillments": [
+        {
+          "id": "ff_dep_01",
+          "type": "DEPOSIT",
+          "customer": {
+            "person": {
+              "id": "pan:rkspm4417c"
+            }
+          },
+          "agent": {
+            "organization": {
+              "creds": [
+                {
+                  "id": "api.buyerapp.com",
+                  "type": "ONDC_SUBSCRIBER_ID"
+                },
+                {
+                  "id": "DIST-99213",
+                  "type": "DISTRIBUTOR_CODE"
+                }
+              ]
+            }
+          },
+          "tags": [
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Cancellation Request",
+                "code": "CANCELLATION_REQUEST"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "WITHDRAWAL_AMOUNT"
+                  },
+                  "value": "5000000"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "tags": [
+        {
+          "display": false,
+          "descriptor": {
+            "name": "BAP Terms of Engagement",
+            "code": "BAP_TERMS"
+          },
+          "list": [
+            {
+              "descriptor": {
+                "code": "STATIC_TERMS"
+              },
+              "value": "https://buyerapp.com/legal/ondc:fis15/static_terms?v=0.1"
+            },
+            {
+              "descriptor": {
+                "code": "OFFLINE_CONTRACT"
+              },
+              "value": "true"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

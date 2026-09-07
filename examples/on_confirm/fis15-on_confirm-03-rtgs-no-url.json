@@ -1,0 +1,260 @@
+{
+  "context": {
+    "location": {
+      "country": {
+        "code": "IND"
+      },
+      "city": {
+        "code": "*"
+      }
+    },
+    "domain": "ONDC:FIS15",
+    "action": "on_confirm",
+    "version": "0.2.0",
+    "bap_id": "api.buyerapp.com",
+    "bap_uri": "https://api.buyerapp.com/ondc",
+    "bpp_id": "api.icicibank.com",
+    "bpp_uri": "https://api.icicibank.com/ondc",
+    "transaction_id": "7c1f0a34-2b58-4d91-8e6a-1f0c7d2b4a95",
+    "message_id": "d2846f07-5c19-4b38-a7e6-91f3c0d84a52",
+    "timestamp": "2026-09-02T10:09:03.000Z",
+    "ttl": "PT10M"
+  },
+  "message": {
+    "order": {
+      "id": "FD-ICICI-20260902-004523",
+      "status": "ACCEPTED",
+      "provider": {
+        "id": "icici_fd",
+        "descriptor": {
+          "name": "ICICI Bank"
+        }
+      },
+      "items": [
+        {
+          "id": "icici_fd_regular",
+          "descriptor": {
+            "name": "ICICI Bank Fixed Deposit",
+            "code": "DEPOSIT_PRODUCT"
+          },
+          "fulfillment_ids": [
+            "ff_dep_01"
+          ],
+          "quantity": {
+            "selected": {
+              "measure": {
+                "value": "35000000",
+                "unit": "INR"
+              }
+            }
+          }
+        }
+      ],
+      "fulfillments": [
+        {
+          "id": "ff_dep_01",
+          "type": "DEPOSIT",
+          "state": {
+            "descriptor": {
+              "name": "Pending",
+              "code": "PENDING"
+            }
+          },
+          "customer": {
+            "person": {
+              "id": "pan:rkspm4417c"
+            }
+          },
+          "stops": [
+            {
+              "time": {
+                "label": "TENURE",
+                "duration": "P550D"
+              }
+            }
+          ],
+          "tags": [
+            {
+              "display": true,
+              "descriptor": {
+                "name": "VKYC Terms",
+                "code": "VKYC_TERMS"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "VKYC_REQUIRED"
+                  },
+                  "value": "false"
+                },
+                {
+                  "descriptor": {
+                    "code": "VKYC_SEQUENCING"
+                  },
+                  "value": "NOT_REQUIRED"
+                }
+              ]
+            },
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Payment Instruction",
+                "code": "PAYMENT_INSTRUCTION"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "INSTRUCTION_TYPE"
+                  },
+                  "value": "CREDIT_TO_VIRTUAL_ACCOUNT"
+                },
+                {
+                  "descriptor": {
+                    "code": "BENEFICIARY_NAME"
+                  },
+                  "value": "ICICI Bank Ltd FD Collections"
+                },
+                {
+                  "descriptor": {
+                    "code": "PAYMENT_REFERENCE"
+                  },
+                  "value": "FD004523"
+                },
+                {
+                  "descriptor": {
+                    "code": "CREDIT_BY"
+                  },
+                  "value": "2026-09-04T23:59:59.000Z"
+                },
+                {
+                  "descriptor": {
+                    "code": "INSTRUCTION_NOTE"
+                  },
+                  "value": "Transfer by RTGS from the linked account only. The virtual account number is unique to this order; no separate reference is needed."
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "payments": [
+        {
+          "id": "pmt_7710",
+          "collected_by": "BPP",
+          "status": "NOT-PAID",
+          "type": "PRE_FULFILLMENT",
+          "params": {
+            "amount": "35000000",
+            "currency": "INR",
+            "bank_code": "ICIC0000001",
+            "bank_account_number": "ICICIFD004523"
+          },
+          "tags": [
+            {
+              "display": false,
+              "descriptor": {
+                "name": "Payment Method",
+                "code": "PAYMENT_METHOD"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "MODE"
+                  },
+                  "value": "RTGS"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "quote": {
+        "id": "quote_fd_35cr_550d_680",
+        "price": {
+          "currency": "INR",
+          "value": "35000000"
+        },
+        "breakup": [
+          {
+            "item": {
+              "id": "icici_fd_regular",
+              "fulfillment_ids": [
+                "ff_dep_01"
+              ]
+            },
+            "title": "PRINCIPAL",
+            "price": {
+              "currency": "INR",
+              "value": "35000000"
+            }
+          }
+        ],
+        "ttl": "PT15M"
+      },
+      "cancellation_terms": [
+        {
+          "fulfillment_state": {
+            "descriptor": {
+              "code": "PENDING"
+            }
+          },
+          "reason_required": false,
+          "cancellation_fee": {
+            "percentage": "0.00"
+          }
+        },
+        {
+          "fulfillment_state": {
+            "descriptor": {
+              "code": "ACTIVE"
+            }
+          },
+          "reason_required": true,
+          "cancellation_fee": {
+            "percentage": "0.50"
+          }
+        }
+      ],
+      "refund_terms": [
+        {
+          "fulfillment_state": {
+            "descriptor": {
+              "code": "INITIATED"
+            }
+          },
+          "refund_eligible": true,
+          "refund_within": {
+            "duration": "P3D"
+          },
+          "refund_amount": {
+            "currency": "INR",
+            "value": "35000000"
+          }
+        }
+      ],
+      "tags": [
+        {
+          "display": false,
+          "descriptor": {
+            "name": "BPP Terms of Engagement",
+            "code": "BPP_TERMS"
+          },
+          "list": [
+            {
+              "descriptor": {
+                "code": "STATIC_TERMS"
+              },
+              "value": "https://www.icicibank.com/legal/ondc:fis15/static_terms?v=0.1"
+            },
+            {
+              "descriptor": {
+                "code": "OFFLINE_CONTRACT"
+              },
+              "value": "true"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

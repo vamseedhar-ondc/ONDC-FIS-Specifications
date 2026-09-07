@@ -1,0 +1,666 @@
+openapi: 3.0.0
+info:
+  title: ONDC FIS15 — On Select API
+  description: >-
+    BPP → BAP priced deposit. The issuer resolves the configuration against its
+    rate card and returns the arithmetic — the rate it applied, what the deposit
+    earns, and what it is worth at maturity.
+
+    ONE GROUP, ON THE ITEM. Everything this call says is in a single
+    MATURITY_PROJECTION group: the principal, the payout basis, the rate, the
+    effective yield, the compounding, the maturity amount, the total interest,
+    and — for a non-cumulative deposit — the per-payout figures. There is no
+    DEPOSIT_INFORMATION here. The buyer app sent the configuration and does not need
+    it read back; what it needs is the answer.
+
+    EVERY FIGURE IS GROSS. No TDS estimate and no net maturity value,
+    deliberately: the s.194A threshold applies across every deposit the investor
+    holds with this bank, and at /on_select the issuer does not yet know who the
+    investor is. A tax figure computed on this deposit alone would be
+    confidently wrong. Tax appears on the terminal /on_init, against the
+    identified investor's actual holdings.
+
+    NO DATES EITHER. The deposit is not funded, so there is no value date and no
+    maturity date — both depend on when the money actually lands. stops[].time
+    carries the tenure, and only the tenure, until /on_confirm.
+
+    The quote is INDICATIVE. It is a firm arithmetic answer to the question
+    asked, and the issuer should honour quote.ttl, but it is not what the
+    investor commits against: the terminal /on_init restates it as binding with
+    a fresh ttl once onboarding closes. Nothing in this call creates an order.
+
+    Domain code ONDC:FIS15 and error range 832001-832042 are requested from
+    ONDC and not yet allocated.
+  version: 0.2.0
+
+servers:
+  - url: https://api.buyerapp.com/ondc
+    description: BAP (buyer app) callback endpoint
+
+paths:
+  /on_select:
+    post:
+      summary: Return the maturity projection
+      description: >-
+        Returns an ACK/NACK synchronously. One shape only — there is no state
+        machine here and no form chain. Either the configuration prices and the
+        projection comes back, or it does not and an error comes back with no
+        order at all.
+      operationId: onSelect
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnSelectRequest'
+            examples:
+              P1_retail_cumulative:
+                summary: 'Cumulative — Rs 5,00,000 at 6.25% for 400 days'
+                description: >-
+                  PAYOUT_BASIS CUMULATIVE. Interest compounds quarterly and
+                  MATURITY_AMOUNT is principal plus compounded interest. The
+                  three per-payout fields are absent.
+                value:
+                  $ref: '../examples/on_select/fis15-on_select-01-retail-cumulative.json'
+
+              P2_bulk_senior_quarterly:
+                summary: 'Periodic — Rs 3.5 crore at 6.80% for 550 days, quarterly payout'
+                description: >-
+                  PAYOUT_BASIS PERIODIC. Interest never compounds, so
+                  COMPOUNDING_FREQUENCY is P0D and MATURITY_AMOUNT is the
+                  principal alone. Six payouts plus a four-day stub reconcile
+                  exactly to TOTAL_INTEREST.
+                value:
+                  $ref: '../examples/on_select/fis15-on_select-02-bulk-senior-quarterly.json'
+
+              P3_no_rate_cell:
+                summary: 'Rejection — 832013, no rate cell matches'
+                description: >-
+                  context plus error, and NO message.order. The buyer app's
+                  cached catalog is stale; run a delta /search before retrying.
+                value:
+                  $ref: '../examples/on_select/fis15-on_select-03-error-832013.json'
+      responses:
+        default:
+          description: ACK / NACK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ack'
+
+components:
+  schemas:
+
+    OnSelectRequest:
+      type: object
+      additionalProperties: false
+      required: [context]
+      oneOf:
+        - required: [message]
+          not: { required: [error] }
+        - required: [error]
+          not: { required: [message] }
+      description: >-
+        message XOR error. A priced order and an error never travel together.
+      properties:
+        context:
+          allOf:
+            - $ref: '#/components/schemas/Context'
+            - type: object
+              required: [action, bpp_id, bpp_uri]
+              properties:
+                action:
+                  enum: [on_select]
+        message:
+          type: object
+          additionalProperties: false
+          required: [order]
+          properties:
+            order:
+              $ref: '#/components/schemas/Order'
+        error:
+          $ref: '#/components/schemas/Error'
+
+    Context:
+      type: object
+      additionalProperties: false
+      required:
+        - location
+        - domain
+        - action
+        - version
+        - bap_id
+        - bap_uri
+        - bpp_id
+        - bpp_uri
+        - transaction_id
+        - message_id
+        - timestamp
+        - ttl
+      properties:
+        location:
+          type: object
+          additionalProperties: false
+          required: [country, city]
+          properties:
+            country:
+              type: object
+              properties:
+                code: { type: string, enum: [IND] }
+            city:
+              type: object
+              properties:
+                code: { type: string, enum: ['*'] }
+        domain:  { type: string, enum: [ONDC:FIS15] }
+        action:  { type: string, enum: [on_select] }
+        version: { type: string, example: 0.2.0 }
+        bap_id:  { type: string }
+        bap_uri: { type: string, format: uri }
+        bpp_id:  { type: string }
+        bpp_uri: { type: string, format: uri }
+        transaction_id:
+          type: string
+          format: uuid
+          description: Echoes the /select that asked.
+        message_id:
+          type: string
+          format: uuid
+          description: Echoes the message_id of the /select being answered.
+        timestamp: { type: string, format: date-time }
+        ttl:       { type: string, example: PT10M }
+
+    Order:
+      type: object
+      additionalProperties: false
+      required: [provider, items, fulfillments, quote, tags]
+      description: >-
+        A priced configuration. No order.status and no order.id — nothing has
+        been drafted, let alone created. The draft appears at the terminal
+        /on_init and the id at /on_confirm.
+      properties:
+        provider:
+          type: object
+          additionalProperties: false
+          required: [id]
+          properties:
+            id:         { type: string }
+            descriptor: { $ref: '#/components/schemas/Descriptor' }
+        ref_order_ids:
+          type: array
+          items: { type: string }
+        items:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/Item'
+        fulfillments:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/Fulfillment'
+        quote:
+          $ref: '#/components/schemas/Quote'
+        tags:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/TagGroup'
+          description: Carries BPP_TERMS.
+
+    Item:
+      type: object
+      additionalProperties: false
+      required: [id, descriptor, fulfillment_ids, quantity, tags]
+      properties:
+        id: { type: string }
+        descriptor:
+          type: object
+          additionalProperties: false
+          required: [name, code]
+          properties:
+            name: { type: string }
+            code: { type: string, enum: [DEPOSIT_PRODUCT, SERVICE] }
+        fulfillment_ids:
+          type: array
+          minItems: 1
+          items: { type: string }
+        quantity:
+          type: object
+          additionalProperties: false
+          required: [selected]
+          properties:
+            selected:
+              type: object
+              additionalProperties: false
+              required: [measure]
+              properties:
+                measure:
+                  type: object
+                  additionalProperties: false
+                  required: [value, unit]
+                  properties:
+                    value: { type: string, description: Echoes the amount asked for. }
+                    unit:  { type: string, enum: [INR] }
+
+        tags:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/TagGroup'
+          description: >-
+            Exactly one group — MATURITY_PROJECTION. Item level, in continuation
+            of the catalog's RATE_CARD_ENTRY and PAYOUT_OPTION, which sit on the
+            item too.
+    Fulfillment:
+      type: object
+      additionalProperties: false
+      required: [id, type, stops]
+      description: >-
+        No customer, no state and no tags. There is no investor on this call,
+        no fulfillment to be in a state about, and the deposit's economics live
+        on the item. What remains is the timeline: the tenure, and the payout
+        schedule for a non-cumulative deposit.
+      properties:
+        id:   { type: string }
+        type: { type: string, enum: [DEPOSIT] }
+        stops:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            additionalProperties: false
+            required: [time]
+            properties:
+              time:
+                type: object
+                additionalProperties: false
+                properties:
+                  label:
+                    type: string
+                    enum: [TENURE, INTEREST_PAYOUT, MATURITY]
+                  duration:
+                    type: string
+                    description: Echoes the tenure asked for, e.g. P400D.
+                  schedule:
+                    type: object
+                    additionalProperties: false
+                    properties:
+                      frequency:
+                        type: string
+                        example: R6/P3M
+                        description: >-
+                          ISO 8601 repeating interval for the interest payouts.
+                          Non-cumulative deposits only. Anchorless here — there
+                          is no value date until /on_confirm.
+
+    Quote:
+      type: object
+      additionalProperties: false
+      required: [id, price, ttl]
+      description: >-
+        INDICATIVE. Restated as binding, with a fresh ttl, on the terminal
+        /on_init. quote.id is what /init carries forward to bind an onboarding
+        chain to this price.
+      properties:
+        id: { type: string }
+        price:
+          $ref: '#/components/schemas/Price'
+        breakup:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [title, price]
+            properties:
+              item:
+                type: object
+                additionalProperties: false
+                properties:
+                  id: { type: string }
+                  fulfillment_ids:
+                    type: array
+                    items: { type: string }
+              title:
+                type: string
+                enum: [PRINCIPAL, INTEREST, TDS, PENALTY, NET_PAYOUT]
+              price:
+                $ref: '#/components/schemas/Price'
+          description: >-
+            The breakup lines MUST sum to quote.price. Interest and maturity
+            figures belong in MATURITY_PROJECTION, not here — quote.price is
+            what the investor pays in, not what they get back.
+        ttl:
+          type: string
+          example: PT15M
+          description: >-
+            MANDATORY. How long this price stands. Rates reprice daily and
+            sometimes intra-day; a quote without an expiry is not a quote.
+
+    Price:
+      type: object
+      additionalProperties: false
+      required: [currency, value]
+      properties:
+        currency: { type: string, enum: [INR] }
+        value:    { type: string }
+
+    Error:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          pattern: '^8320[0-4][0-9]$'
+        message: { type: string }
+
+    TagGroup:
+      type: object
+      additionalProperties: false
+      required: [descriptor, list]
+      properties:
+        display:    { type: boolean, default: false }
+        descriptor: { $ref: '#/components/schemas/Descriptor' }
+        list:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Tag'
+
+    Tag:
+      type: object
+      additionalProperties: false
+      required: [descriptor, value]
+      properties:
+        descriptor: { $ref: '#/components/schemas/Descriptor' }
+        value:      { type: string }
+        display:    { type: boolean }
+
+    Descriptor:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string }
+        code: { type: string }
+
+    Ack:
+      type: object
+      properties:
+        message:
+          type: object
+          properties:
+            ack:
+              type: object
+              properties:
+                status: { type: string, enum: [ACK, NACK] }
+        error:
+          type: object
+          properties:
+            code:    { type: string }
+            message: { type: string }
+
+  x-ondc-fis15:
+
+    tag-groups:
+
+      MATURITY_PROJECTION:
+        level: item
+        required: mandatory
+        cardinality: once
+        description: >-
+          The whole answer, in one group. Every figure is a projection on the
+          stated assumptions, not a guarantee, and every figure is GROSS — see
+          the tax rule.
+        list:
+          PRINCIPAL:
+            required: mandatory
+            type: decimal
+            description: >-
+              Echoes items[].quantity.selected.measure.value. The one echo worth
+              keeping, because every other figure in the group is derived from
+              it and a projection that cannot be checked against its own
+              principal is hard to trust.
+          PAYOUT_BASIS:
+            required: mandatory
+            enum: [CUMULATIVE, PERIODIC]
+            description: >-
+              THE BRANCH KEY. CUMULATIVE means interest compounds and is paid at
+              maturity. PERIODIC means it is paid out at the frequency the buyer
+              app chose and never compounds. The two make MATURITY_AMOUNT mean
+              different things, so this must be read before any figure below it.
+
+              The specific frequency is not echoed — the buyer app sent it in
+              DEPOSIT_CONFIGURATION at /select and still holds it.
+          INTEREST_RATE:
+            required: mandatory
+            type: decimal
+            description: >-
+              The card rate actually applied, % p.a. — the number investors shop
+              on and the one to lead with. The RATE_CARD_ENTRY cell plus any
+              category uplift plus the payout-frequency adjustment, so a BAP
+              holding the catalog can reproduce it and check the issuer priced
+              at the category claimed.
+          ANNUALISED_YIELD:
+            required: mandatory
+            type: decimal
+            description: >-
+              Effective yield p.a., (1 + i/N)^N - 1. The only number that makes
+              two issuers on different compounding bases comparable, which is
+              what this screen is for. Equal to INTEREST_RATE when PAYOUT_BASIS
+              is PERIODIC, because nothing compounds.
+          COMPOUNDING_FREQUENCY:
+            required: mandatory
+            type: duration
+            description: >-
+              ISO 8601. P3M is the market norm for a cumulative deposit. Send
+              P0D when PAYOUT_BASIS is PERIODIC — interest that is paid out does
+              not compound, and an issuer quoting a compounding period there is
+              describing something it is not doing.
+          MATURITY_AMOUNT:
+            required: mandatory
+            type: decimal
+            description: >-
+              CUMULATIVE — principal plus compounded interest. PERIODIC — the
+              PRINCIPAL ALONE, because the interest has already been paid out
+              along the way. The same field name means two different things;
+              PAYOUT_BASIS says which.
+          TOTAL_INTEREST:
+            required: mandatory
+            type: decimal
+            description: Gross interest over the full tenure, on either basis.
+          INTEREST_PER_PAYOUT:
+            required: conditional
+            type: decimal
+            description: >-
+              Mandatory when PAYOUT_BASIS is PERIODIC. The amount that lands each
+              month or quarter — for a periodic deposit this, not
+              MATURITY_AMOUNT, is what the investor is actually buying.
+          PAYOUT_COUNT:
+            required: conditional
+            type: integer
+            description: >-
+              Mandatory when PAYOUT_BASIS is PERIODIC. Number of FULL payout
+              periods in the tenure.
+          FINAL_STUB_INTEREST:
+            required: conditional
+            type: decimal
+            description: >-
+              Mandatory when PAYOUT_BASIS is PERIODIC. Interest for the
+              part-period at the end. Present so the figures reconcile — without
+              it, PAYOUT_COUNT x INTEREST_PER_PAYOUT does not equal
+              TOTAL_INTEREST on any tenure that is not a whole number of payout
+              periods, and an investor with a calculator concludes one of the
+              numbers is wrong. Send "0" on a tenure that divides exactly.
+
+      BPP_TERMS:
+        level: order
+        required: mandatory
+        list:
+          STATIC_TERMS:     { required: mandatory, type: uri }
+          OFFLINE_CONTRACT: { required: mandatory, enum: ['true', 'false'] }
+
+    rules:
+      - TAG LEVELS ARE FIXED ACROSS THE JOURNEY. item carries the deposit's
+        economics under exactly two names. DEPOSIT_CONFIGURATION at /select and
+        /init, where the buyer app states what the investor chose.
+        DEPOSIT_INFORMATION from /on_init onward, where the issuer states the
+        resulting contract and /confirm echoes that statement back verbatim.
+        /on_select is the single exception and answers with MATURITY_PROJECTION
+        alone. Both names sit on the item, in continuation of the catalog's
+        RATE_CARD_ENTRY and PAYOUT_OPTION. THE NAME STATES THE AUTHORITY — a
+        CONFIGURATION is asked for, INFORMATION is stated. There is no
+        DEPOSIT_TERMS anywhere in FIS15. fulfillment carries the investor and
+        the servicing. payment carries money movement. order carries only
+        BAP_TERMS and BPP_TERMS, and nothing else, ever.
+      - Dates live in stops, never in a tag. stops[].time carries the tenure
+        before booking and the real VALUE_DATE and MATURITY_DATE after it.
+      - One shape only. Either a fully priced order or an error — never a
+        partial order, and never both.
+      - quote.ttl is MANDATORY. A price with no expiry is not a price when
+        rates move daily.
+      - The quote is INDICATIVE. Do not present it to the investor as their
+        contracted rate; the binding restatement arrives on the terminal
+        /on_init, and that is what /confirm honours.
+      - No order.id and no order.status. Nothing has been created. A buyer app
+        that stores this as an order will have nothing to reconcile against.
+      - Interest and maturity figures belong in MATURITY_PROJECTION, never in
+        quote.breakup — the breakup lines must sum to quote.price, which is
+        what the investor pays IN.
+      - PAYOUT_BASIS must be read before MATURITY_AMOUNT. The same field name
+        means principal-plus-interest on a cumulative deposit and principal
+        alone on a periodic one.
+      - MATURITY_PROJECTION is the ONLY tag group on the item, and there is no
+        DEPOSIT_INFORMATION on this call. This is the single exception to the
+        two-name rule. The configuration was the buyer app's to send and is
+        still the buyer app's to hold.
+      - The periodic figures MUST reconcile — PAYOUT_COUNT x
+        INTEREST_PER_PAYOUT plus FINAL_STUB_INTEREST equals TOTAL_INTEREST,
+        exactly. Send FINAL_STUB_INTEREST as "0" rather than omitting it.
+      - COMPOUNDING_FREQUENCY is P0D whenever PAYOUT_BASIS is PERIODIC.
+      - EVERY FIGURE IS GROSS. No TDS estimate and no net maturity value — the
+        threshold applies across the investor's holdings and there is no
+        investor here yet. A buyer app presenting MATURITY_AMOUNT as take-home
+        is mis-selling; label it pre-tax and say tax is confirmed at the review
+        screen.
+      - NO DATES. The deposit is not funded, so no value date and no maturity
+        date exist. stops[].time carries the tenure and nothing else until
+        /on_confirm.
+      - The rate returned must be reproducible from the catalog the buyer app
+        holds — RATE_CARD_ENTRY plus RATE_ADJUSTMENT plus the PAYOUT_OPTION
+        adjustment. A rate the BAP cannot derive means one of the two caches is
+        stale.
+      - No identity is echoed, because none was sent. An /on_select carrying a
+        PAN is a conformance failure on the seller's side.
+
+    decisions:
+      one-group-projection:
+        change: >-
+          The issuer-stated economics group was removed from /on_select
+          entirely — there is no DEPOSIT_INFORMATION here, and the v0.1.0
+          DEPOSIT_TERMS it replaced is gone from the whole spec. Its useful
+          fields
+          — INTEREST_RATE, ANNUALISED_YIELD, COMPOUNDING_FREQUENCY — moved into
+          MATURITY_PROJECTION, which is now the only group on the item. The
+          echoes went with it: TENURE_DAYS, DEPOSITOR_CATEGORY,
+          MATURITY_INSTRUCTION, RATE_BASIS_BREAKUP and EFFECTIVE_FROM.
+        why: >-
+          The buyer app sent the configuration one call ago and still holds it.
+          Reading it back made a price look like a contract and made a renderer
+          stitch two groups together for one screen. PRINCIPAL survives as the
+          single echo, because every other figure is derived from it.
+        cost: >-
+          The specific payout frequency is no longer echoed — PAYOUT_BASIS says
+          CUMULATIVE or PERIODIC, not MONTHLY or QUARTERLY. A buyer app
+          rendering purely from the response cannot say "quarterly"; it must
+          join back to what it sent. Accepted deliberately.
+      no-tax-before-identity:
+        change: >-
+          TDS_ESTIMATED and NET_MATURITY_AMOUNT do not appear at /on_select.
+          They are introduced on the terminal /on_init.
+        why: >-
+          The s.194A threshold applies across every deposit the investor holds
+          with the bank. Pre-identity the issuer cannot know the others, so any
+          figure here is a guess presented with the authority of a calculation
+          — worse than no figure. This resolves what v0.2.0 first logged as the
+          tds-estimate-fidelity open point.
+      economics-on-the-item:
+        change: >-
+          The deposit's economics moved from fulfillment level to ITEM level
+          across every call in v0.2.0, and the dates went with the move —
+          VALUE_DATE and MATURITY_DATE are carried by stops and by nothing else.
+          The v0.1.0 group name DEPOSIT_TERMS was retired at the same time, in
+          favour of DEPOSIT_CONFIGURATION when the buyer app asks and
+          DEPOSIT_INFORMATION when the issuer states.
+        why: >-
+          The catalog already puts every piece of deposit economics on the item
+          — PRODUCT_INFORMATION, RATE_CARD_ENTRY, RATE_ADJUSTMENT,
+          PAYOUT_OPTION, TAX_INFORMATION. The group carries the same fields
+          resolved to one rate cell, so having it change level the moment an
+          investor configures a deposit was an inconsistency with nothing
+          behind it. items and fulfillments are both capped at exactly one in
+          every transaction call, so neither level disambiguates anything and
+          the choice is purely about meaning. The dates went because
+          stops[].time already carries them, and on_status already
+          schema-enforces that — two sources for one fact will diverge.
+      calculation-moved-forward:
+        change: >-
+          The full maturity calculation now arrives at /on_select, before any
+          identity has been collected. In v0.1.0 it arrived on /on_select too,
+          but only after the PAN had been surrendered and the ETB/NTB lookup
+          run.
+        why: >-
+          The projection is the number the investor is actually shopping on.
+          Gating it behind identity meant a buyer app could not build a compare
+          screen without collecting a PAN per comparison.
+      annualised-yield-mandatory:
+        change: ANNUALISED_YIELD promoted from optional to mandatory.
+        why: >-
+          Two issuers quoting 6.25% on different compounding bases do not pay
+          the same money. Now that this call is the comparison screen, the
+          comparable number cannot be optional.
+      indicative-not-binding:
+        change: >-
+          The /on_select quote is explicitly indicative; the binding quote is
+          minted on the terminal /on_init.
+        why: >-
+          The onboarding chain now sits between this call and commitment, and
+          it can take ten minutes or more. Binding here would make a
+          daily-repricing issuer honour a rate across an unbounded KYC journey.
+
+    open-points:
+      quote-ttl-vs-chain:
+        status: unresolved
+        question: >-
+          Nothing relates this quote's ttl to the length of the onboarding
+          chain that follows. An investor can be shown a 15-minute quote and
+          then sent into a KYC journey that takes longer.
+        recommendation: >-
+          Require the buyer app to send /init before this ttl lapses, and let
+          the terminal /on_init reprice with a REPRICE_ADVICE tag if the chain
+          outran it. See the repricing-on-terminal open point in
+          FIS15_on_init_API.yaml.
+      indicative-value-date:
+        status: unresolved
+        question: >-
+          The projection has no dates in it. An investor comparing two deposits
+          cannot see when either matures, which is the second thing they ask
+          after the amount.
+        recommendation: >-
+          Add INDICATIVE_VALUE_DATE and INDICATIVE_MATURITY_DATE as stop
+          labels alongside TENURE, computed from the response timestamp and
+          clearly marked as subject to the actual credit date. Dates belong in
+          stops, not in a tag.
+
+    source:
+      derived-from:
+        - FD_ONDC_FIS15_API_Spec.md (sections 6, 7)
+        - FD_ONDC_BRD_Final.docx v1.0, Flow > Deposit configuration
+        - FIS15_on_select_API.yaml v0.1.0 (pricing half; the onboarding half became FIS15_on_init_API.yaml)
+      reference-implementation:
+        repo: ONDC-FIS-Specifications-release-FIS14-2.1.0
+        files:
+          - api/components/schemas/quote.yaml
+      beckn-core: 1.3.0

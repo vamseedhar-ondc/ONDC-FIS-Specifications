@@ -1,0 +1,126 @@
+{
+  "context": {
+    "location": {
+      "country": {
+        "code": "IND"
+      },
+      "city": {
+        "code": "*"
+      }
+    },
+    "domain": "ONDC:FIS15",
+    "action": "on_update",
+    "version": "0.2.0",
+    "bap_id": "api.buyerapp.com",
+    "bap_uri": "https://api.buyerapp.com/ondc",
+    "bpp_id": "api.icicibank.com",
+    "bpp_uri": "https://api.icicibank.com/ondc",
+    "transaction_id": "7c1f0a34-2b58-4d91-8e6a-1f0c7d2b4a95",
+    "message_id": "1f76b3ca-58e0-49d7-8b24-c0e9a5371f4a",
+    "timestamp": "2027-04-20T05:14:31.000Z",
+    "ttl": "PT10M"
+  },
+  "message": {
+    "order": {
+      "id": "FD-ICICI-20260902-004523",
+      "status": "ACTIVE",
+      "provider": {
+        "id": "icici_fd",
+        "descriptor": {
+          "name": "ICICI Bank"
+        }
+      },
+      "fulfillments": [
+        {
+          "id": "ff_dep_01",
+          "type": "DEPOSIT",
+          "state": {
+            "descriptor": {
+              "name": "Active",
+              "code": "ACTIVE"
+            }
+          },
+          "customer": {
+            "person": {
+              "id": "pan:rkspm4417c"
+            }
+          },
+          "tags": [
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Servicing Status",
+                "code": "SERVICING_STATUS"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "ACTION"
+                  },
+                  "value": "DOCUMENT_REQUEST"
+                },
+                {
+                  "descriptor": {
+                    "code": "STATUS"
+                  },
+                  "value": "SUCCESSFUL"
+                },
+                {
+                  "descriptor": {
+                    "code": "REQUESTED_AT"
+                  },
+                  "value": "2027-04-20T05:14:27.000Z"
+                },
+                {
+                  "descriptor": {
+                    "code": "UPDATED_AT"
+                  },
+                  "value": "2027-04-20T05:14:31.000Z"
+                },
+                {
+                  "descriptor": {
+                    "code": "REFERENCE"
+                  },
+                  "value": "SRV-004523-0001"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "documents": [
+        {
+          "descriptor": {
+            "name": "Interest Certificate FY 2026-27",
+            "code": "INTEREST_CERTIFICATE"
+          },
+          "mime_type": "application/pdf",
+          "url": "https://docs.icicibank.com/fd/interest-certificate/004523-FY2627.pdf?exp=1776661471&sig=8f3ac21d"
+        }
+      ],
+      "tags": [
+        {
+          "display": false,
+          "descriptor": {
+            "name": "BPP Terms of Engagement",
+            "code": "BPP_TERMS"
+          },
+          "list": [
+            {
+              "descriptor": {
+                "code": "STATIC_TERMS"
+              },
+              "value": "https://www.icicibank.com/legal/ondc:fis15/static_terms?v=0.1"
+            },
+            {
+              "descriptor": {
+                "code": "OFFLINE_CONTRACT"
+              },
+              "value": "true"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

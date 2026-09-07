@@ -1,0 +1,119 @@
+{
+  "context": {
+    "location": {
+      "country": {
+        "code": "IND"
+      },
+      "city": {
+        "code": "*"
+      }
+    },
+    "domain": "ONDC:FIS15",
+    "action": "update",
+    "version": "0.2.0",
+    "bap_id": "api.buyerapp.com",
+    "bap_uri": "https://api.buyerapp.com/ondc",
+    "bpp_id": "api.icicibank.com",
+    "bpp_uri": "https://api.icicibank.com/ondc",
+    "transaction_id": "e9895269-e7a9-4003-9ebc-534413a6017b",
+    "message_id": "e40a7c95-1db6-4823-9f0e-52c8b6a17d43",
+    "timestamp": "2027-06-10T14:02:55.000Z",
+    "ttl": "PT10M"
+  },
+  "message": {
+    "update_target": "order.items[].tags.DEPOSIT_INFORMATION",
+    "order": {
+      "id": "FD-ICICI-20260902-004481",
+      "provider": {
+        "id": "icici_fd"
+      },
+      "items": [
+        {
+          "id": "icici_fd_regular",
+          "tags": [
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Deposit Information",
+                "code": "DEPOSIT_INFORMATION"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "MATURITY_INSTRUCTION"
+                  },
+                  "value": "RENEW_PRINCIPAL_AND_INTEREST"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "fulfillments": [
+        {
+          "id": "ff_dep_01",
+          "type": "DEPOSIT",
+          "customer": {
+            "person": {
+              "id": "pan:abcpk1234f",
+              "creds": [
+                {
+                  "id": "ABCPK1234F",
+                  "type": "PAN"
+                },
+                {
+                  "id": "49.205.12.88",
+                  "type": "IP_ADDRESS"
+                },
+                {
+                  "id": "702845",
+                  "type": "2FA_PHONE_OTP"
+                }
+              ]
+            },
+            "contact": {
+              "phone": "9876543210"
+            }
+          },
+          "agent": {
+            "organization": {
+              "creds": [
+                {
+                  "id": "api.buyerapp.com",
+                  "type": "ONDC_SUBSCRIBER_ID"
+                },
+                {
+                  "id": "DIST-99213",
+                  "type": "DISTRIBUTOR_CODE"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "tags": [
+        {
+          "display": false,
+          "descriptor": {
+            "name": "BAP Terms of Engagement",
+            "code": "BAP_TERMS"
+          },
+          "list": [
+            {
+              "descriptor": {
+                "code": "STATIC_TERMS"
+              },
+              "value": "https://buyerapp.com/legal/ondc:fis15/static_terms?v=0.1"
+            },
+            {
+              "descriptor": {
+                "code": "OFFLINE_CONTRACT"
+              },
+              "value": "true"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

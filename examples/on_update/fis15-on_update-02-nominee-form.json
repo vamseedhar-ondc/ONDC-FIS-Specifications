@@ -1,0 +1,181 @@
+{
+  "context": {
+    "location": {
+      "country": {
+        "code": "IND"
+      },
+      "city": {
+        "code": "*"
+      }
+    },
+    "domain": "ONDC:FIS15",
+    "action": "on_update",
+    "version": "0.2.0",
+    "bap_id": "api.buyerapp.com",
+    "bap_uri": "https://api.buyerapp.com/ondc",
+    "bpp_id": "api.icicibank.com",
+    "bpp_uri": "https://api.icicibank.com/ondc",
+    "transaction_id": "e9895269-e7a9-4003-9ebc-534413a6017b",
+    "message_id": "9b3d6e02-4c81-4f57-b0a9-3e7c15d8402a",
+    "timestamp": "2027-01-15T06:31:11.000Z",
+    "ttl": "PT10M"
+  },
+  "message": {
+    "order": {
+      "id": "FD-ICICI-20260902-004481",
+      "status": "ACTIVE",
+      "provider": {
+        "id": "icici_fd",
+        "descriptor": {
+          "name": "ICICI Bank"
+        }
+      },
+      "fulfillments": [
+        {
+          "id": "ff_dep_01",
+          "type": "DEPOSIT",
+          "state": {
+            "descriptor": {
+              "name": "Active",
+              "code": "ACTIVE"
+            }
+          },
+          "customer": {
+            "person": {
+              "id": "pan:abcpk1234f"
+            }
+          },
+          "stops": [
+            {
+              "time": {
+                "label": "VALUE_DATE",
+                "timestamp": "2026-09-02T00:00:00.000Z"
+              }
+            },
+            {
+              "time": {
+                "label": "MATURITY_DATE",
+                "timestamp": "2027-10-07T00:00:00.000Z"
+              }
+            }
+          ],
+          "tags": [
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Servicing Status",
+                "code": "SERVICING_STATUS"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "ACTION"
+                  },
+                  "value": "NOMINEE_UPDATE"
+                },
+                {
+                  "descriptor": {
+                    "code": "STATUS"
+                  },
+                  "value": "IN_PROGRESS"
+                },
+                {
+                  "descriptor": {
+                    "code": "REQUESTED_AT"
+                  },
+                  "value": "2027-01-15T06:31:08.000Z"
+                },
+                {
+                  "descriptor": {
+                    "code": "UPDATED_AT"
+                  },
+                  "value": "2027-01-15T06:31:11.000Z"
+                },
+                {
+                  "descriptor": {
+                    "code": "REFERENCE"
+                  },
+                  "value": "SRV-004481-0002"
+                }
+              ]
+            },
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Nominee Information",
+                "code": "NOMINEE_INFORMATION"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "NOMINATION_OPTED"
+                  },
+                  "value": "true"
+                },
+                {
+                  "descriptor": {
+                    "code": "NOMINEE_COUNT"
+                  },
+                  "value": "1"
+                },
+                {
+                  "descriptor": {
+                    "code": "NOMINEE_NAME_MASKED"
+                  },
+                  "value": "R**** K*******"
+                },
+                {
+                  "descriptor": {
+                    "code": "NOMINEE_RELATIONSHIP"
+                  },
+                  "value": "SPOUSE"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "xinput": {
+        "required": true,
+        "head": {
+          "index": {
+            "min": 0,
+            "cur": 0,
+            "max": 0
+          },
+          "headings": [
+            "NOMINEE"
+          ]
+        },
+        "form": {
+          "id": "form_nominee_chg_88214",
+          "url": "https://forms.icicibank.com/fd/nominee?k=7c31ea",
+          "mime_type": "text/html"
+        }
+      },
+      "tags": [
+        {
+          "display": false,
+          "descriptor": {
+            "name": "BPP Terms of Engagement",
+            "code": "BPP_TERMS"
+          },
+          "list": [
+            {
+              "descriptor": {
+                "code": "STATIC_TERMS"
+              },
+              "value": "https://www.icicibank.com/legal/ondc:fis15/static_terms?v=0.1"
+            },
+            {
+              "descriptor": {
+                "code": "OFFLINE_CONTRACT"
+              },
+              "value": "true"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

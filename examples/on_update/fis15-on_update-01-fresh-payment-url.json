@@ -1,0 +1,217 @@
+{
+  "context": {
+    "location": {
+      "country": {
+        "code": "IND"
+      },
+      "city": {
+        "code": "*"
+      }
+    },
+    "domain": "ONDC:FIS15",
+    "action": "on_update",
+    "version": "0.2.0",
+    "bap_id": "api.buyerapp.com",
+    "bap_uri": "https://api.buyerapp.com/ondc",
+    "bpp_id": "api.icicibank.com",
+    "bpp_uri": "https://api.icicibank.com/ondc",
+    "transaction_id": "e9895269-e7a9-4003-9ebc-534413a6017b",
+    "message_id": "5c8e1a4f-70d2-4b93-a6e1-8f24c0b7d539",
+    "timestamp": "2026-09-02T09:49:14.000Z",
+    "ttl": "PT10M"
+  },
+  "message": {
+    "order": {
+      "id": "FD-ICICI-20260902-004481",
+      "status": "ACCEPTED",
+      "provider": {
+        "id": "icici_fd",
+        "descriptor": {
+          "name": "ICICI Bank"
+        }
+      },
+      "fulfillments": [
+        {
+          "id": "ff_dep_01",
+          "type": "DEPOSIT",
+          "state": {
+            "descriptor": {
+              "name": "Pending",
+              "code": "PENDING"
+            }
+          },
+          "customer": {
+            "person": {
+              "id": "pan:abcpk1234f"
+            }
+          },
+          "stops": [
+            {
+              "time": {
+                "label": "TENURE",
+                "duration": "P400D"
+              }
+            }
+          ],
+          "tags": [
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Servicing Status",
+                "code": "SERVICING_STATUS"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "ACTION"
+                  },
+                  "value": "PAYMENT_RETRY"
+                },
+                {
+                  "descriptor": {
+                    "code": "STATUS"
+                  },
+                  "value": "SUCCESSFUL"
+                },
+                {
+                  "descriptor": {
+                    "code": "REQUESTED_AT"
+                  },
+                  "value": "2026-09-02T09:49:12.000Z"
+                },
+                {
+                  "descriptor": {
+                    "code": "UPDATED_AT"
+                  },
+                  "value": "2026-09-02T09:49:14.000Z"
+                },
+                {
+                  "descriptor": {
+                    "code": "REFERENCE"
+                  },
+                  "value": "SRV-004481-0001"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "payments": [
+        {
+          "id": "pmt_5501",
+          "collected_by": "BPP",
+          "status": "FAILED",
+          "type": "PRE_FULFILLMENT",
+          "params": {
+            "amount": "500000",
+            "currency": "INR"
+          },
+          "tags": [
+            {
+              "display": false,
+              "descriptor": {
+                "name": "Payment Method",
+                "code": "PAYMENT_METHOD"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "MODE"
+                  },
+                  "value": "NETBANKING"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "pmt_5502",
+          "collected_by": "BPP",
+          "status": "NOT-PAID",
+          "type": "PRE_FULFILLMENT",
+          "url": "https://pay.icicibank.com/fd/collect?ref=c47f10b2",
+          "params": {
+            "amount": "500000",
+            "currency": "INR"
+          },
+          "tags": [
+            {
+              "display": false,
+              "descriptor": {
+                "name": "Payment Method",
+                "code": "PAYMENT_METHOD"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "MODE"
+                  },
+                  "value": "NETBANKING"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "quote": {
+        "id": "quote_fd_5l_400d_625",
+        "price": {
+          "currency": "INR",
+          "value": "500000"
+        },
+        "breakup": [
+          {
+            "item": {
+              "id": "icici_fd_regular",
+              "fulfillment_ids": [
+                "ff_dep_01"
+              ]
+            },
+            "title": "PRINCIPAL",
+            "price": {
+              "currency": "INR",
+              "value": "500000"
+            }
+          }
+        ],
+        "ttl": "PT15M"
+      },
+      "cancellation_terms": [
+        {
+          "fulfillment_state": {
+            "descriptor": {
+              "code": "PENDING"
+            }
+          },
+          "reason_required": false,
+          "cancellation_fee": {
+            "percentage": "0.00"
+          }
+        }
+      ],
+      "tags": [
+        {
+          "display": false,
+          "descriptor": {
+            "name": "BPP Terms of Engagement",
+            "code": "BPP_TERMS"
+          },
+          "list": [
+            {
+              "descriptor": {
+                "code": "STATIC_TERMS"
+              },
+              "value": "https://www.icicibank.com/legal/ondc:fis15/static_terms?v=0.1"
+            },
+            {
+              "descriptor": {
+                "code": "OFFLINE_CONTRACT"
+              },
+              "value": "true"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

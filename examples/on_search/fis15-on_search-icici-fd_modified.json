@@ -1,0 +1,3233 @@
+{
+  "context": {
+    "location": {
+      "country": {
+        "code": "IND"
+      },
+      "city": {
+        "code": "*"
+      }
+    },
+    "domain": "ONDC:FIS15",
+    "action": "on_search",
+    "version": "0.2.0",
+    "bap_id": "api.buyerapp.com",
+    "bap_uri": "https://api.buyerapp.com/ondc",
+    "bpp_id": "api.icicibank.com",
+    "bpp_uri": "https://api.icicibank.com/ondc",
+    "transaction_id": "111ebf67-e89c-4a14-bc2d-dc1f18c6375f",
+    "message_id": "533d2db7-937c-456b-a805-53f0e67ad743",
+    "timestamp": "2026-09-02T06:12:02.000Z",
+    "ttl": "PT10M"
+  },
+  "message": {
+    "catalog": {
+      "descriptor": {
+        "name": "ICICI Bank"
+      },
+      "providers": [
+        {
+          "id": "icici_fd",
+          "descriptor": {
+            "name": "ICICI Bank"
+          },
+          "tags": [
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Issuer Information",
+                "code": "ISSUER_INFORMATION"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "ISSUER_TYPE"
+                  },
+                  "value": "SCHEDULED_COMMERCIAL_BANK"
+                },
+                {
+                  "descriptor": {
+                    "code": "ISSUER_LEGAL_NAME"
+                  },
+                  "value": "ICICI Bank Limited"
+                },
+                {
+                  "descriptor": {
+                    "code": "DICGC_INSURED"
+                  },
+                  "value": "true"
+                }
+              ]
+            }
+          ],
+          "categories": [
+            {
+              "id": "0",
+              "descriptor": {
+                "name": "Fixed Deposit",
+                "code": "FIXED_DEPOSIT"
+              }
+            },
+            {
+              "id": "1",
+              "descriptor": {
+                "name": "Regular FD",
+                "code": "FD_REGULAR"
+              },
+              "parent_category_id": "0"
+            }
+          ],
+          "items": [
+            {
+              "id": "icici_fd_regular",
+              "descriptor": {
+                "name": "ICICI Bank Fixed Deposit",
+                "code": "DEPOSIT_PRODUCT"
+              },
+              "category_ids": [
+                "1"
+              ],
+              "fulfillment_ids": [
+                "ff_dep_01"
+              ],
+              "matched": true,
+              "ttl": "P1D",
+              "tags": [
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Product Information",
+                    "code": "PRODUCT_INFORMATION"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "STATUS"
+                      },
+                      "value": "active"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "PRODUCT_TYPE"
+                      },
+                      "value": "FD_REGULAR"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "10000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "49999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MULTIPLES"
+                      },
+                      "value": "1"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "7"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "3650"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "PREMATURE_WITHDRAWAL_ALLOWED"
+                      },
+                      "value": "true"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "PARTIAL_WITHDRAWAL_ALLOWED"
+                      },
+                      "value": "true"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AUTO_RENEWAL_SUPPORTED"
+                      },
+                      "value": "true"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "NOMINEE_UPDATE_ALLOWED"
+                      },
+                      "value": "true"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "MATURITY_INSTRUCTION_UPDATE_ALLOWED"
+                      },
+                      "value": "true"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "MATURITY_INSTRUCTION_CUTOFF_DAYS"
+                      },
+                      "value": "15"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DOCUMENT_REQUEST_SUPPORTED"
+                      },
+                      "value": "true"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "PRODUCT_TNC"
+                      },
+                      "value": "https://www.icicibank.com/personal-banking/deposits/fixed-deposit/terms"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "7"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "45"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "10000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "29999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "GENERAL"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "2.75"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "2.78"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "46"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "90"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "10000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "29999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "GENERAL"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "4.00"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "4.06"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "91"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "184"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "10000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "29999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "GENERAL"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "4.50"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "4.58"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "185"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "364"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "10000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "29999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "GENERAL"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "5.50"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "5.61"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "365"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "546"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "10000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "29999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "GENERAL"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "6.25"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "6.40"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "547"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "730"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "10000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "29999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "GENERAL"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "6.30"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "6.45"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "731"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "1095"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "10000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "29999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "GENERAL"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "6.45"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "6.61"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "1096"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "1825"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "10000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "29999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "GENERAL"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "6.50"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "6.66"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "1826"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "3650"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "10000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "29999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "GENERAL"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "6.50"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "6.66"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "7"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "29"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "30000000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "49999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "GENERAL"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "3.50"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "3.55"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "30"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "45"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "30000000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "49999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "GENERAL"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "4.25"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "4.32"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "46"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "60"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "30000000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "49999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "GENERAL"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "4.50"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "4.58"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "61"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "90"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "30000000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "49999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "GENERAL"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "4.75"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "4.84"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "91"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "184"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "30000000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "49999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "GENERAL"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "5.25"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "5.35"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "185"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "270"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "30000000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "49999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "GENERAL"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "5.50"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "5.61"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "271"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "364"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "30000000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "49999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "GENERAL"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "5.75"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "5.88"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "365"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "389"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "30000000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "49999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "GENERAL"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "6.25"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "6.40"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "390"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "546"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "30000000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "49999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "GENERAL"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "6.25"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "6.40"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "547"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "730"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "30000000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "49999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "GENERAL"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "6.30"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "6.45"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "731"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "1095"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "30000000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "49999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "GENERAL"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "6.45"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "6.61"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "1096"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "1825"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "30000000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "49999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "GENERAL"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "6.50"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "6.66"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "1826"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "3650"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "30000000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "49999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "GENERAL"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "6.50"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "6.66"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "7"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "45"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "10000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "29999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "SENIOR_CITIZEN"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "3.25"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "3.29"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "46"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "90"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "10000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "29999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "SENIOR_CITIZEN"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "4.50"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "4.58"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "91"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "184"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "10000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "29999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "SENIOR_CITIZEN"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "5.00"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "5.09"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "185"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "364"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "10000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "29999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "SENIOR_CITIZEN"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "6.00"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "6.14"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "365"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "546"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "10000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "29999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "SENIOR_CITIZEN"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "6.75"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "6.92"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "547"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "730"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "10000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "29999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "SENIOR_CITIZEN"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "6.80"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "6.98"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "731"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "1095"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "10000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "29999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "SENIOR_CITIZEN"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "6.95"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "7.13"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "1096"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "1825"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "10000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "29999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "SENIOR_CITIZEN"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "7.10"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "7.29"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "1826"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "3650"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "10000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "29999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "SENIOR_CITIZEN"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "7.00"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "7.19"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "7"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "29"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "30000000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "49999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "SENIOR_CITIZEN"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "3.50"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "3.55"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "30"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "45"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "30000000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "49999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "SENIOR_CITIZEN"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "4.25"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "4.32"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "46"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "60"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "30000000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "49999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "SENIOR_CITIZEN"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "4.50"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "4.58"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "61"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "90"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "30000000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "49999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "SENIOR_CITIZEN"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "4.75"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "4.84"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "91"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "184"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "30000000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "49999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "SENIOR_CITIZEN"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "5.25"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "5.35"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "185"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "270"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "30000000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "49999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "SENIOR_CITIZEN"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "6.00"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "6.14"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "271"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "364"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "30000000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "49999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "SENIOR_CITIZEN"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "6.00"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "6.14"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "365"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "389"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "30000000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "49999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "SENIOR_CITIZEN"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "6.75"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "6.92"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "390"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "546"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "30000000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "49999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "SENIOR_CITIZEN"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "6.75"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "6.92"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "547"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "730"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "30000000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "49999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "SENIOR_CITIZEN"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "6.80"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "6.98"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "731"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "1095"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "30000000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "49999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "SENIOR_CITIZEN"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "6.95"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "7.13"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "1096"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "1825"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "30000000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "49999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "SENIOR_CITIZEN"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "7.10"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "7.29"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Rate Card Entry",
+                    "code": "RATE_CARD_ENTRY"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "1826"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MAX_DAYS"
+                      },
+                      "value": "3650"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MIN"
+                      },
+                      "value": "30000000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "AMOUNT_MAX"
+                      },
+                      "value": "49999999"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "DEPOSITOR_CATEGORY"
+                      },
+                      "value": "SENIOR_CITIZEN"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "INTEREST_RATE"
+                      },
+                      "value": "7.00"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ANNUALISED_YIELD"
+                      },
+                      "value": "7.19"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "COMPOUNDING_FREQUENCY"
+                      },
+                      "value": "P3M"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "EFFECTIVE_FROM"
+                      },
+                      "value": "2026-08-05"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Payout Option",
+                    "code": "PAYOUT_OPTION"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "PAYOUT_FREQUENCY"
+                      },
+                      "value": "CUMULATIVE"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ADJUSTMENT_BPS"
+                      },
+                      "value": "0"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Payout Option",
+                    "code": "PAYOUT_OPTION"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "PAYOUT_FREQUENCY"
+                      },
+                      "value": "QUARTERLY"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ADJUSTMENT_BPS"
+                      },
+                      "value": "0"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "91"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Payout Option",
+                    "code": "PAYOUT_OPTION"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "PAYOUT_FREQUENCY"
+                      },
+                      "value": "MONTHLY"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "ADJUSTMENT_BPS"
+                      },
+                      "value": "-15"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TENURE_MIN_DAYS"
+                      },
+                      "value": "185"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Premature Withdrawal Terms",
+                    "code": "PREMATURE_WITHDRAWAL_TERMS"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "MIN_LOCKIN_DAYS"
+                      },
+                      "value": "0"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "RATE_BASIS"
+                      },
+                      "value": "CARD_RATE_FOR_RUN_TENURE"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Penalty Tier",
+                    "code": "PENALTY_TIER"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "FROM_DAYS"
+                      },
+                      "value": "0"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TO_DAYS"
+                      },
+                      "value": "6"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "PENALTY_TYPE"
+                      },
+                      "value": "NO_INTEREST"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Penalty Tier",
+                    "code": "PENALTY_TIER"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "FROM_DAYS"
+                      },
+                      "value": "7"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TO_DAYS"
+                      },
+                      "value": "3650"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "PENALTY_TYPE"
+                      },
+                      "value": "RATE_REDUCTION"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "PENALTY_BPS"
+                      },
+                      "value": "50"
+                    }
+                  ]
+                },
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "Tax Information",
+                    "code": "TAX_INFORMATION"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "TDS_APPLICABLE"
+                      },
+                      "value": "true"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TDS_SECTION"
+                      },
+                      "value": "194A"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TDS_RATE_WITH_PAN"
+                      },
+                      "value": "10"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TDS_RATE_WITHOUT_PAN"
+                      },
+                      "value": "20"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TDS_THRESHOLD_GENERAL"
+                      },
+                      "value": "50000"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "TDS_THRESHOLD_SENIOR"
+                      },
+                      "value": "100000"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "fulfillments": [
+            {
+              "id": "ff_dep_01",
+              "type": "DEPOSIT",
+              "tags": [
+                {
+                  "display": true,
+                  "descriptor": {
+                    "name": "VKYC Terms",
+                    "code": "VKYC_TERMS"
+                  },
+                  "list": [
+                    {
+                      "descriptor": {
+                        "code": "VKYC_REQUIRED"
+                      },
+                      "value": "true"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "VKYC_SEQUENCING"
+                      },
+                      "value": "POST_PAYMENT"
+                    },
+                    {
+                      "descriptor": {
+                        "code": "VKYC_SLA"
+                      },
+                      "value": "P7D"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "tags": [
+        {
+          "display": false,
+          "descriptor": {
+            "name": "BPP Terms of Engagement",
+            "code": "BPP_TERMS"
+          },
+          "list": [
+            {
+              "descriptor": {
+                "code": "STATIC_TERMS"
+              },
+              "value": "https://www.icicibank.com/legal/ondc:fis15/static_terms?v=0.1"
+            },
+            {
+              "descriptor": {
+                "code": "OFFLINE_CONTRACT"
+              },
+              "value": "true"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

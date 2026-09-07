@@ -1,0 +1,845 @@
+openapi: 3.0.0
+info:
+  title: ONDC FIS15 — Cancel API
+  description: >-
+    BAP → BPP request to end a deposit contract, in whole or in part, before it
+    runs its course. Three situations share this call — an order the investor
+    never paid for, an order they paid for and want out of before it is booked,
+    and a live deposit they want to break — because all three are the same act
+    at different points on the timeline, and all three are priced against the
+    same cancellation_terms the issuer published at /on_confirm.
+
+    TWO PHASES, ALWAYS AVAILABLE, AND THE FIRST ONE IS FREE. cancellation_type
+    QUOTE asks what breaking the deposit would cost and changes nothing;
+    EXECUTE does it. The BRD requires the penalty to be on screen before the
+    investor confirms, and a protocol that only offers "cancel now" cannot put
+    it there. QUOTE is repeatable and carries no 2FA — it is a question, not an
+    instruction.
+
+    EVERY EXECUTE CARRIES 2FA. /confirm required a one-time password to create
+    the contract; ending one is not a lesser act. The rule is flat rather than
+    conditional on how much money is at stake, because a rule an implementer has
+    to evaluate is a rule an implementer gets wrong, and there is no case where
+    an unauthenticated party should be able to close someone's deposit.
+
+    PARTIAL WITHDRAWAL IS NOT A CANCELLATION AND IS HANDLED HERE ANYWAY. The
+    deposit survives with a smaller principal, so nothing is cancelled in the
+    beckn sense — but it is priced against the same penalty tiers, authenticated
+    the same way, and quoted from the same rate card, and splitting it into its
+    own call would duplicate all three for the sake of a naming purity the
+    investor does not experience. CANCELLATION_SCOPE says which of the three is
+    meant, and the schema branches on it.
+
+    THIS CALL DOES NOT SERVICE A DEPOSIT. Changing a nominee, a maturity
+    instruction or a payment link is /update. If the deposit survives unchanged
+    in size, this is the wrong call.
+
+    Domain code ONDC:FIS15 and error range 832001-832042 are requested from
+    ONDC and not yet allocated.
+  version: 0.2.0
+
+servers:
+  - url: https://api.icicibank.com/ondc
+    description: BPP (seller app) endpoint
+
+paths:
+  /cancel:
+    post:
+      summary: Quote, or carry out, the ending of a deposit
+      description: >-
+        Returns an ACK/NACK synchronously; the quote or the outcome arrives on
+        the BAP's /on_cancel. A QUOTE mints a cancellation quote with a ttl, and
+        the EXECUTE that follows must echo its id and beat its clock — the same
+        binding the terminal /on_init and /confirm use, for the same reason:
+        accrued interest and card rates both move daily, so a payout figure
+        without an expiry is not a figure.
+      operationId: cancel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelRequest'
+            examples:
+              X1_quote_premature:
+                summary: 'QUOTE / DEPOSIT_FULL — what does breaking this cost?'
+                description: >-
+                  The retail deposit, 194 days into a 400-day term. No 2FA and
+                  no quote id, because nothing is being instructed yet. The
+                  answer comes back as a full penalty computation the buyer app
+                  can put on screen.
+                value:
+                  $ref: '../examples/cancel/fis15-cancel-01-quote-premature.json'
+
+              X2_execute_premature:
+                summary: 'EXECUTE / DEPOSIT_FULL — break it'
+                description: >-
+                  The same deposit two minutes later, echoing the quote id from
+                  X1 and carrying PAN, IP address and a phone OTP. Sent after
+                  the quote ttl elapses this is 832025, and the fix is a fresh
+                  QUOTE, not a retry.
+                value:
+                  $ref: '../examples/cancel/fis15-cancel-02-execute-premature.json'
+
+              X3_quote_partial:
+                summary: 'QUOTE / DEPOSIT_PARTIAL — take out Rs 50 lakh of Rs 3.5 crore'
+                description: >-
+                  The bulk deposit, on a quarterly payout date. WITHDRAWAL_AMOUNT
+                  is mandatory for this scope and is the only thing
+                  CANCELLATION_REQUEST carries.
+                value:
+                  $ref: '../examples/cancel/fis15-cancel-03-quote-partial.json'
+
+              X4_execute_partial:
+                summary: 'EXECUTE / DEPOSIT_PARTIAL — take it out'
+                description: >-
+                  Echoes X3's quote. The deposit does NOT end: it continues at
+                  the same rate and the same maturity date on Rs 3 crore.
+                value:
+                  $ref: '../examples/cancel/fis15-cancel-04-execute-partial.json'
+
+              X5_unpaid_order:
+                summary: 'EXECUTE / ORDER — the investor never paid'
+                description: >-
+                  No quote id, because scope ORDER is the one case that needs no
+                  pricing — cancellation_terms put the fee at zero while the
+                  fulfillment is PENDING and no money was ever collected. 2FA is
+                  still required: an order is still a contract.
+                value:
+                  $ref: '../examples/cancel/fis15-cancel-05-unpaid-order.json'
+      responses:
+        default:
+          description: ACK / NACK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ack'
+
+components:
+  schemas:
+
+    CancelRequest:
+      type: object
+      additionalProperties: false
+      required: [context, message]
+      properties:
+        context:
+          allOf:
+            - $ref: '#/components/schemas/Context'
+            - type: object
+              required: [action, bpp_id, bpp_uri]
+              properties:
+                action:
+                  enum: [cancel]
+        message:
+          $ref: '#/components/schemas/CancelMessage'
+
+    Context:
+      type: object
+      additionalProperties: false
+      required:
+        - location
+        - domain
+        - action
+        - version
+        - bap_id
+        - bap_uri
+        - bpp_id
+        - bpp_uri
+        - transaction_id
+        - message_id
+        - timestamp
+        - ttl
+      properties:
+        location:
+          type: object
+          additionalProperties: false
+          required: [country, city]
+          properties:
+            country:
+              type: object
+              properties:
+                code: { type: string, enum: [IND] }
+            city:
+              type: object
+              properties:
+                code: { type: string, enum: ['*'] }
+        domain:  { type: string, enum: [ONDC:FIS15] }
+        action:  { type: string, enum: [cancel] }
+        version: { type: string, example: 0.2.0 }
+        bap_id:  { type: string }
+        bap_uri: { type: string, format: uri }
+        bpp_id:  { type: string }
+        bpp_uri: { type: string, format: uri }
+        transaction_id:
+          type: string
+          format: uuid
+          description: >-
+            The booking journey's id, minted at the opening /select however long
+            ago. A deposit broken in its third year still carries it, which is
+            the retention obligation /status and /update both state and the one
+            implementations most often get wrong by discarding the id at
+            /on_confirm.
+        message_id: { type: string, format: uuid, description: Fresh per call, including per QUOTE. }
+        timestamp:
+          type: string
+          format: date-time
+          description: >-
+            On an EXECUTE against a withdrawal quote, must fall inside that
+            quote's ttl window. Later is 832025.
+        ttl: { type: string, example: PT10M }
+
+    CancelMessage:
+      type: object
+      additionalProperties: false
+      required: [order_id, cancellation_type, cancellation_scope, cancellation_reason_id, order]
+      description: >-
+        order_id sits at message level, as it does on /status, because a
+        cancellation always names an order that already exists — there is no
+        pre-order cancellation here. Abandoning an onboarding chain that never
+        became an order is /update on order.status, and the two are not the same
+        act: one ends a contract, the other closes a record of something that
+        never became one.
+      properties:
+        order_id:
+          type: string
+          example: FD-ICICI-20260902-004481
+          description: >-
+            Minted at /on_confirm. An id the issuer does not recognise, or one
+            belonging to another investor, is 832033.
+        cancellation_type:
+          type: string
+          enum: [QUOTE, EXECUTE]
+          description: >-
+            QUOTE asks and changes nothing. EXECUTE does it. A buyer app that
+            offers a confirm button without having run a QUOTE is showing the
+            investor a decision it has not priced.
+        cancellation_scope:
+          type: string
+          enum: [ORDER, DEPOSIT_FULL, DEPOSIT_PARTIAL]
+          description: >-
+            ORDER — end an order whose deposit does not exist yet, paid or
+            unpaid. The fulfillment is PENDING or INITIATED.
+            DEPOSIT_FULL — break a live deposit. The fulfillment is ACTIVE.
+            DEPOSIT_PARTIAL — take part of a live deposit out and leave the rest
+            running.
+
+            The scope must match the fulfillment's actual state or the answer is
+            832022. A buyer app holds that state from the last /on_status and
+            should not need to be told.
+        cancellation_reason_id:
+          type: string
+          enum:
+            - INVESTOR_CHANGED_MIND
+            - FUNDS_NEEDED_EARLY
+            - RATE_NO_LONGER_ACCEPTABLE
+            - BETTER_RATE_AVAILABLE
+            - PAYMENT_NOT_COMPLETED
+            - DUPLICATE_BOOKING
+            - INVESTOR_REQUEST_OTHER
+          description: >-
+            Why the investor is ending it. Mandatory on a QUOTE as well as an
+            EXECUTE, because an issuer may price a retention offer differently
+            against FUNDS_NEEDED_EARLY than against BETTER_RATE_AVAILABLE, and
+            because cancellation_terms may set reason_required true.
+        descriptor:
+          type: object
+          additionalProperties: false
+          properties:
+            short_desc:
+              type: string
+              description: >-
+                Free text from the investor. Never required, never parsed, and
+                never a substitute for cancellation_reason_id.
+        order:
+          $ref: '#/components/schemas/Order'
+      oneOf:
+        - title: Quote — ask what it costs
+          properties:
+            cancellation_type: { const: QUOTE }
+          required: [cancellation_type]
+          allOf:
+            - properties:
+                order:
+                  not: { required: [quote] }
+                  properties:
+                    fulfillments:
+                      items:
+                        properties:
+                          customer:
+                            properties:
+                              person:
+                                not: { required: [creds] }
+        - title: Execute — carry it out
+          properties:
+            cancellation_type: { const: EXECUTE }
+          required: [cancellation_type]
+          allOf:
+            - properties:
+                order:
+                  properties:
+                    fulfillments:
+                      items:
+                        properties:
+                          customer:
+                            required: [person, contact]
+                            properties:
+                              person:
+                                required: [id, creds]
+                                properties:
+                                  creds:
+                                    minItems: 3
+                                    allOf:
+                                      - contains:
+                                          type: object
+                                          required: [type]
+                                          properties:
+                                            type: { const: PAN }
+                                      - contains:
+                                          type: object
+                                          required: [type]
+                                          properties:
+                                            type: { const: IP_ADDRESS }
+                                      - contains:
+                                          type: object
+                                          required: [type]
+                                          properties:
+                                            type:
+                                              type: string
+                                              enum: [2FA_PHONE_OTP, 2FA_EMAIL_OTP]
+            - if:
+                properties:
+                  cancellation_scope:
+                    enum: [DEPOSIT_FULL, DEPOSIT_PARTIAL]
+                required: [cancellation_scope]
+              then:
+                properties:
+                  order:
+                    required: [quote]
+
+    Order:
+      type: object
+      additionalProperties: false
+      required: [provider, fulfillments, tags]
+      description: >-
+        A PARTIAL ORDER carrying the handle and the request, and nothing else.
+        No items — the deposit's economics are the issuer's to state and the
+        issuer states them on /on_cancel. No payments — the buyer app does not
+        tell the issuer where to send the money; a payout goes to the linked
+        account with role PAYOUT or BOTH and to no other, which is what 832036
+        polices.
+      properties:
+        provider:
+          type: object
+          additionalProperties: false
+          required: [id]
+          properties:
+            id: { type: string, example: icici_fd }
+        ref_order_ids:
+          type: array
+          items: { type: string }
+        fulfillments:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/Fulfillment'
+        quote:
+          $ref: '#/components/schemas/QuoteRef'
+        tags:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/TagGroup'
+          description: BAP_TERMS, and only BAP_TERMS.
+
+    Fulfillment:
+      type: object
+      additionalProperties: false
+      required: [id, type, customer]
+      description: >-
+        The deposit's own fulfillment. type stays DEPOSIT — the fulfillment being
+        ended is the deposit, and FIS15 does not mint a withdrawal-typed
+        fulfillment for the act of ending it. See
+        decisions.no-withdrawal-fulfillment.
+      properties:
+        id:   { type: string, example: ff_dep_01 }
+        type: { type: string, enum: [DEPOSIT] }
+        customer:
+          type: object
+          additionalProperties: false
+          required: [person]
+          properties:
+            person:
+              type: object
+              additionalProperties: false
+              required: [id]
+              properties:
+                id:
+                  type: string
+                  pattern: '^pan:[a-zA-Z]{5}[0-9]{4}[a-zA-Z]$'
+                  description: >-
+                    The investor the order belongs to. A PAN that does not match
+                    the order is 832033 — the buyer app is asking about someone
+                    else's deposit, which is a different error from asking
+                    something impossible about its own.
+                creds:
+                  type: array
+                  minItems: 1
+                  items:
+                    $ref: '#/components/schemas/Credential'
+                  description: >-
+                    MANDATORY ON EVERY EXECUTE and forbidden on a QUOTE. PAN,
+                    IP_ADDRESS and exactly one 2FA credential — the same three
+                    /confirm requires to open the deposit, enforced the same way
+                    to close it.
+            contact:
+              type: object
+              additionalProperties: false
+              properties:
+                phone: { type: string }
+                email: { type: string }
+              description: >-
+                The contact the OTP went to. Mandatory on an EXECUTE; must match
+                one the issuer holds, or 832021.
+        agent:
+          type: object
+          additionalProperties: false
+          required: [organization]
+          properties:
+            organization:
+              type: object
+              additionalProperties: false
+              required: [creds]
+              properties:
+                creds:
+                  type: array
+                  minItems: 1
+                  items:
+                    $ref: '#/components/schemas/Credential'
+        tags:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/CancellationRequestTagGroup'
+          description: >-
+            CANCELLATION_REQUEST, and only on DEPOSIT_PARTIAL, where it carries
+            the amount. Every other scope needs no tag at all — the message
+            already says what is being ended and why.
+
+    QuoteRef:
+      type: object
+      additionalProperties: false
+      required: [id]
+      description: >-
+        A REFERENCE to the cancellation quote minted on the QUOTE round. Mandatory
+        on an EXECUTE whose scope is DEPOSIT_FULL or DEPOSIT_PARTIAL, and absent
+        everywhere else — including on scope ORDER, which is not priced. The
+        buyer app echoes the id and never the figures; restating a payout it did
+        not compute is how two sides come to disagree about what was owed.
+      properties:
+        id: { type: string, example: cxl_004481_20270315_a71f }
+
+    CancellationRequestTagGroup:
+      type: object
+      additionalProperties: false
+      required: [descriptor, list]
+      description: >-
+        Schema-pinned to one tag. The scope and the reason travel at message
+        level, so the only thing left for a tag to carry is the amount, and a
+        group that could carry more would invite a buyer app to restate the
+        deposit back at the issuer.
+      properties:
+        display: { type: boolean, default: false }
+        descriptor:
+          type: object
+          additionalProperties: false
+          required: [code]
+          properties:
+            name: { type: string }
+            code: { const: CANCELLATION_REQUEST }
+        list:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            type: object
+            additionalProperties: false
+            required: [descriptor, value]
+            properties:
+              descriptor:
+                type: object
+                additionalProperties: false
+                required: [code]
+                properties:
+                  name: { type: string }
+                  code: { const: WITHDRAWAL_AMOUNT }
+              value:
+                type: string
+                description: >-
+                  How much to take out, in INR. Must be less than the current
+                  principal and must leave a remainder that still satisfies the
+                  product's AMOUNT_MIN and AMOUNT_MULTIPLES — a partial
+                  withdrawal that strands an unbookable stub is 832024, and so
+                  is one that equals the whole principal, which is a
+                  DEPOSIT_FULL wearing the wrong scope.
+              display: { type: boolean }
+
+    Credential:
+      type: object
+      additionalProperties: false
+      required: [id, type]
+      properties:
+        id: { type: string }
+        type:
+          type: string
+          enum:
+            - PAN
+            - IP_ADDRESS
+            - 2FA_PHONE_OTP
+            - 2FA_EMAIL_OTP
+            - ONDC_SUBSCRIBER_ID
+            - DISTRIBUTOR_CODE
+
+    TagGroup:
+      type: object
+      additionalProperties: false
+      required: [descriptor, list]
+      properties:
+        display:    { type: boolean, default: false }
+        descriptor: { $ref: '#/components/schemas/Descriptor' }
+        list:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Tag'
+
+    Tag:
+      type: object
+      additionalProperties: false
+      required: [descriptor, value]
+      properties:
+        descriptor: { $ref: '#/components/schemas/Descriptor' }
+        value:      { type: string }
+        display:    { type: boolean }
+
+    Descriptor:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string }
+        code: { type: string }
+
+    Ack:
+      type: object
+      properties:
+        message:
+          type: object
+          properties:
+            ack:
+              type: object
+              properties:
+                status: { type: string, enum: [ACK, NACK] }
+        error:
+          type: object
+          properties:
+            code:    { type: string }
+            message: { type: string }
+
+  x-ondc-fis15:
+
+    scopes:
+      description: >-
+        What each scope means, what state it requires, and what it leaves
+        behind. The buyer app picks the scope from the fulfillment state it
+        already holds; a scope that does not match is 832022.
+      list:
+        - scope: ORDER
+          applies_when: fulfillment PENDING (unpaid) or INITIATED (paid, not yet booked)
+          quote_required_on_execute: false
+          leaves: >-
+            order CANCELLED, fulfillment CANCELLED. Money collected is refunded
+            to the funding account as an appended REFUND entry, inside
+            refund_terms.refund_within.
+          note: >-
+            The deposit never existed, so nothing is broken and no penalty
+            applies — cancellation_terms puts the fee at zero for PENDING. What
+            the investor loses is the rate, not money.
+        - scope: DEPOSIT_FULL
+          applies_when: fulfillment ACTIVE
+          quote_required_on_execute: true
+          leaves: >-
+            order COMPLETED, fulfillment CLOSED_PREMATURE, and an appended
+            ON_FULFILLMENT payment for the net payout.
+          note: >-
+            COMPLETED, not CANCELLED. The contract ended on terms the contract
+            itself set out, which is what cancellation_terms and PENALTY_TIER
+            are — an early exit is a priced option, not an abnormal termination.
+            /on_status already states this coupling.
+        - scope: DEPOSIT_PARTIAL
+          applies_when: fulfillment ACTIVE, and PARTIAL_WITHDRAWAL_ALLOWED true
+          quote_required_on_execute: true
+          leaves: >-
+            order ACTIVE and fulfillment ACTIVE — unchanged — with a reduced
+            principal, restated DEPOSIT_INFORMATION, and an appended
+            ON_FULFILLMENT payment.
+          note: >-
+            The one scope that ends nothing. The rate, the maturity date and the
+            payout frequency all survive; only the principal moves.
+
+    two-factor-authentication:
+      description: >-
+        Identical in shape to /confirm, and deliberately so.
+      rules:
+        - Every EXECUTE carries PAN, IP_ADDRESS and exactly one of
+          2FA_PHONE_OTP or 2FA_EMAIL_OTP, schema-enforced by minItems and three
+          contains clauses.
+        - A QUOTE carries none of them, also schema-enforced. An OTP demanded to
+          answer a question teaches investors to approve OTPs for nothing.
+        - The OTP goes to a contact the ISSUER holds, not one the buyer app
+          collected. A mismatch is 832021 and nothing is cancelled.
+        - The flat rule is intentional. Making 2FA conditional on how much money
+          moves would mean an unpaid-order cancellation needs no authentication —
+          and an unpaid order is still a contract the issuer is holding a rate
+          against, and still someone else's to end.
+
+    tag-groups:
+
+      CANCELLATION_REQUEST:
+        level: fulfillment
+        required: conditional
+        cardinality: once
+        description: >-
+          Mandatory when CANCELLATION_SCOPE is DEPOSIT_PARTIAL and absent
+          otherwise. Schema-pinned to a single tag, because everything else about
+          the request — which order, which scope, why — already travels at
+          message level where the schema can branch on it.
+        list:
+          WITHDRAWAL_AMOUNT:
+            required: mandatory
+            type: decimal
+            description: >-
+              The amount to take out. Must be strictly less than the current
+              principal, and must leave a remainder satisfying AMOUNT_MIN and
+              AMOUNT_MULTIPLES from PRODUCT_INFORMATION. Equal to the principal
+              is 832024, not a silent promotion to DEPOSIT_FULL.
+
+      BAP_TERMS:
+        level: order
+        required: mandatory
+        list:
+          STATIC_TERMS:     { required: mandatory, type: uri }
+          OFFLINE_CONTRACT: { required: mandatory, enum: ['true', 'false'] }
+
+    error-codes:
+      description: >-
+        Allocated for the cancellation calls from the unassigned middle of the
+        requested 832001-832042 range.
+      new:
+        832022: >-
+          Cancellation not permitted in the order's current state — already
+          terminal, or the scope does not match the fulfillment state.
+        832023: >-
+          Inside the lock-in period. MIN_LOCKIN_DAYS from
+          PREMATURE_WITHDRAWAL_TERMS has not elapsed, or the product is a
+          tax-saver with LOCKIN_PERIOD_DAYS still running.
+        832024: >-
+          Partial withdrawal refused — not supported by the product, or the
+          amount is not less than the principal, or the remainder would breach
+          AMOUNT_MIN or AMOUNT_MULTIPLES.
+        832025: >-
+          Cancellation quote expired or unknown. Re-run the QUOTE; do not retry
+          the EXECUTE.
+        832026: >-
+          A cancellation is already in progress on this order. Wait for the
+          /on_status that resolves it.
+      reused:
+        832021: 2FA credential does not match the contact the issuer holds.
+        832033: Unknown order id, or an order belonging to another investor.
+        832036: The payout account is not the linked account of record.
+        832042: The request contradicts what the issuer holds.
+
+    rules:
+      - TAG LEVELS ARE FIXED ACROSS THE JOURNEY. This call sends one tag group
+        and one only — CANCELLATION_REQUEST on the fulfillment, carrying the
+        withdrawal amount — plus BAP_TERMS on the order. The deposit's economics
+        are item level and are the ISSUER's to state, which it does on
+        /on_cancel; a buyer app does not compute a payout.
+      - Dates live in stops, never in a tag. This call sends no stops at all —
+        the effective date of a cancellation is the instant the issuer processes
+        it, and the buyer app does not get to choose it.
+      - QUOTE CHANGES NOTHING and may be sent as often as the investor moves the
+        slider. It carries no 2FA and no quote id.
+      - EXECUTE ALWAYS CARRIES 2FA. No exceptions by scope, by amount, or by
+        whether money has been collected.
+      - An EXECUTE whose scope is DEPOSIT_FULL or DEPOSIT_PARTIAL must echo the
+        quote id from a QUOTE that has not expired. Scope ORDER must NOT carry
+        one — there is nothing to price, and a quote id there is 832042.
+      - The scope must match the fulfillment state. ORDER for PENDING or
+        INITIATED, DEPOSIT_FULL and DEPOSIT_PARTIAL for ACTIVE. Anything else is
+        832022, including a second cancellation of an order already CANCELLED or
+        COMPLETED.
+      - WITHDRAWAL_AMOUNT equal to the principal is 832024. A buyer app that
+        means to close the deposit says DEPOSIT_FULL; the issuer does not
+        promote a scope on the buyer app's behalf.
+      - The payout goes to the LINKED_BANK_ACCOUNT of record with role PAYOUT or
+        BOTH, and to no account supplied on this call — there is no field for
+        one. An issuer asked to pay elsewhere answers 832036.
+      - Ending an onboarding chain that never became an order is NOT this call.
+        It is /update on order.status, it needs no 2FA and no quote, and it
+        carries no order id because none was ever minted.
+      - Servicing a deposit that survives at its original size is NOT this call
+        either. Nominee, maturity instruction, documents and payment links are
+        /update.
+
+    decisions:
+      cancel-not-a-booking-chain:
+        change: >-
+          Premature and partial withdrawal are transacted here, on /cancel,
+          rather than as a fresh /select - /init - /confirm chain carrying
+          ref_order_ids.
+        why: >-
+          The chain was the earlier recommendation and it was wrong. /init exists
+          to establish who the investor is and to run the onboarding forms, and
+          for a deposit the issuer has already booked for a known investor there
+          is nothing to onboard — every round would be an ETB fast path that
+          asserts what both sides already know. /confirm's payment object is
+          structurally about collecting money, so a disbursement would have meant
+          widening a schema every booking depends on to serve a case that is not
+          a booking. And a withdrawal is the ending of a contract, which is the
+          one thing beckn's /cancel is actually for; routing it through the
+          booking path would have left FIS15 with a /cancel-shaped hole and a
+          booking call doing cancellations.
+        knock-on: >-
+          The payment-object widening logged against the withdrawal gap is no
+          longer needed. /on_status's ledger already models an outbound entry —
+          type ON_FULFILLMENT for a payout, REFUND for money coming back — so
+          /on_cancel appends to the parent order's ledger and nothing has to
+          change in /confirm or /on_confirm.
+      two-phase-in-one-call-pair:
+        change: >-
+          Pricing and execution are cancellation_type QUOTE and EXECUTE on the
+          same call pair, rather than a separate quoting action.
+        why: >-
+          The BRD requires the penalty on screen before the investor confirms, so
+          a quote step is not optional. Putting it in the same pair keeps the
+          whole act legible in one place and lets the quote id bind the two
+          rounds exactly as the terminal /on_init binds /confirm. A separate
+          action would have been a third call that could only ever be followed by
+          this one.
+        note: >-
+          beckn's soft-cancel idiom carries the same distinction in a descriptor
+          string. An explicit enum was chosen over it for the same reason
+          update_target is an enum: a routing decision that changes the schema
+          should be visible to the schema.
+      scope-at-message-level:
+        change: >-
+          CANCELLATION_SCOPE travels in the message, beside cancellation_type,
+          rather than inside a tag group on the fulfillment.
+        why: >-
+          It decides which branch the payload must satisfy — whether a quote id
+          is required, whether an amount is required, what state the order must
+          be in. A routing field buried in a tag cannot be branched on by the
+          schema without a deeply nested contains clause that is fragile to write
+          and worse to read. update_target set this precedent and it held up.
+      partial-withdrawal-lives-here:
+        change: >-
+          DEPOSIT_PARTIAL is a cancellation scope even though it cancels nothing.
+        why: >-
+          It shares the penalty tiers, the rate-card lookup, the 2FA and the
+          payout path with a full withdrawal, and differs only in what survives.
+          Modelling it elsewhere would duplicate four mechanisms to honour a
+          naming distinction the investor never experiences — they are taking
+          money out of a deposit either way.
+        cost: >-
+          The call is named for what it usually does rather than what it always
+          does, and one of its three scopes leaves the order ACTIVE. Stated in
+          the scopes table rather than left for an implementer to discover from
+          an example.
+      no-withdrawal-fulfillment:
+        change: >-
+          The fulfillment stays type DEPOSIT with its state moved to
+          CLOSED_PREMATURE. FIS15 does not mint a PREMATURE_WITHDRAWAL or
+          PARTIAL_WITHDRAWAL fulfillment, and those values are retired from the
+          type enums in this revision.
+        why: >-
+          Same reasoning that retired the servicing types. A fulfillment is
+          something being delivered, and what was delivered here is the deposit —
+          ending it early is a state the deposit reaches, not a second thing
+          delivered alongside it. CLOSED_PREMATURE already exists as a
+          fulfillment state and already means exactly this, so a withdrawal-typed
+          fulfillment would have been a second way to say what the state says.
+      flat-2fa-rule:
+        change: 2FA is required on every EXECUTE, not only where money moves.
+        why: >-
+          The conditional version was drafted and discarded. An unpaid order
+          carries no money but is still a contract the issuer is holding a rate
+          against, and still not the buyer app's to end unilaterally. A flat rule
+          is also the only one a schema can enforce without reading the
+          fulfillment state, which the payload does not carry.
+
+    open-points:
+      retention-offers:
+        status: unresolved
+        question: >-
+          cancellation_reason_id is collected partly so an issuer can respond to
+          FUNDS_NEEDED_EARLY differently from BETTER_RATE_AVAILABLE, but nothing
+          lets it actually respond — there is no way to answer a QUOTE with "here
+          is a loan against this deposit instead", which is what a bank would
+          really do.
+        recommendation: >-
+          Let /on_cancel carry an optional RETENTION_OFFER group on the quote
+          shape, purely advisory, that the buyer app may render beside the payout
+          figure. Do not let it block or delay the cancellation.
+      partial-withdrawal-reprices-the-remainder:
+        status: unresolved
+        question: >-
+          A partial withdrawal can drop the remaining principal into a different
+          amount slab — Rs 3.5 crore is a bulk deposit and Rs 2.5 crore is not.
+          This revision holds the contracted rate on the remainder, which is the
+          investor-friendly reading and probably what issuers do, but nothing
+          says so and no issuer has been asked.
+        recommendation: >-
+          State explicitly that the contracted rate survives a partial
+          withdrawal regardless of slab, or add a REPRICE_ADVICE group on the
+          quote so an issuer that reprices must show it before the investor
+          commits. Decide before the first production integration.
+      no-cancellation-window-after-booking:
+        status: unresolved
+        question: >-
+          Nothing gives the investor a cooling-off window after a deposit is
+          booked. A deposit broken on day one is priced by PENALTY_TIER's
+          0-6 day NO_INTEREST band, which is correct as a penalty schedule but
+          may not be correct as consumer protection.
+        recommendation: >-
+          Check whether RBI's deposit directions oblige a free-look window for
+          digitally sourced deposits. If so it belongs in PRODUCT_INFORMATION as
+          a published term, not as a special case in this call.
+      death-and-succession:
+        status: acknowledged, deliberately out of scope
+        question: >-
+          A nominee claim on a deceased investor's deposit is a closure, and it
+          is nothing like this call — different claimant, different
+          authentication, documentary evidence, and no 2FA on a contact that
+          belongs to someone who has died.
+        recommendation: >-
+          Model it as its own journey when the BRD asks for it. Do not extend
+          cancellation_reason_id to reach it; an enum value is not a process.
+
+    source:
+      derived-from:
+        - FD_ONDC_BRD_Final.docx v1.0, Post-Booking Services (Premature
+          Withdrawal, Partial Withdrawal, Closure Confirmation & Funds Credit)
+        - FIS15_on_confirm_API.yaml — cancellation_terms and refund_terms, which
+          this call is what finally invokes
+        - FIS15_on_search_API_modified.yaml — PREMATURE_WITHDRAWAL_TERMS and the
+          PENALTY_TIER schedule the quote is computed from
+        - FIS15_on_status_API.yaml — the CLOSED_PREMATURE coupling and the
+          append-only ledger the payout joins
+      chains-with:
+        - FIS15_on_cancel_API.yaml — answers it
+        - FIS15_update_API.yaml — the other post-booking call, and the boundary
+          is stated in both
+      beckn-core: 1.3.0

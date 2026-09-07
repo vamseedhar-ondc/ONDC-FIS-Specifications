@@ -1,0 +1,880 @@
+openapi: 3.0.0
+info:
+  title: ONDC FIS15 — On Confirm API
+  description: >-
+    BPP → BAP order acceptance. SLIMMED IN v0.2.0 to what only this call can
+    say. /confirm carried the complete statement — the deposit's terms, the
+    investor's facts and details, the chosen account and the chosen rail — so
+    none of it is restated here.
+
+    Four things happen here and nowhere else: the order gets its ID, its status
+    becomes ACCEPTED, the PAYMENT INSTRUCTION is issued, and the CANCELLATION
+    AND REFUND TERMS become binding against a real order. Everything before this
+    was negotiation.
+
+    The payment instruction lives in one of THREE places depending on the rail,
+    and a buyer app that looks in only one of them will silently fail on the
+    others:
+      redirect rail   payments[].url            a bank page to send the browser to
+      UPI with URI    payments[].params.url     a upi:// intent string for a QR or app handoff
+      push rail       NEITHER                   the issuer's collection account, in params
+
+    Money moves AFTER this call, not during it. The order is ACCEPTED but the
+    fulfillment is PENDING and the payment NOT-PAID; the deposit does not exist
+    until an unsolicited /on_status says so.
+
+    Domain code ONDC:FIS15 and error range 832001-832042 are requested from
+    ONDC and not yet allocated.
+  version: 0.2.0
+
+servers:
+  - url: https://api.buyerapp.com/ondc
+    description: BAP (buyer app) callback endpoint
+
+paths:
+  /on_confirm:
+    post:
+      summary: Accept or reject the order, and issue the payment instruction
+      description: >-
+        Returns an ACK/NACK synchronously. On acceptance the buyer app must act
+        on whichever payment instruction the rail dictates, then wait for the
+        unsolicited /on_status that reports the outcome. On rejection the
+        payload is context plus error with no order at all.
+      operationId: onConfirm
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnConfirmRequest'
+            examples:
+              F1_netbanking_url:
+                summary: 'Redirect rail — payments[].url'
+                description: >-
+                  Rs 5,00,000 by netbanking. The buyer app redirects the
+                  browser; the URL is single-use.
+                value:
+                  $ref: '../examples/on_confirm/fis15-on_confirm-01-netbanking-url.json'
+
+              F2_upi_intent:
+                summary: 'UPI with URI — params.url carries a upi:// string'
+                description: >-
+                  A small-ticket Rs 75,000 deposit, the segment where UPI is
+                  actually viable. The instruction is an intent string for a QR
+                  or app handoff, NOT a web page — note it is in params, not at
+                  payment level.
+                value:
+                  $ref: '../examples/on_confirm/fis15-on_confirm-02-upi-intent.json'
+
+              F3_rtgs_no_url:
+                summary: 'Push rail — no URL anywhere'
+                description: >-
+                  Rs 3.5 crore by RTGS. The issuer returns a per-order VIRTUAL
+                  collection account, so the credit self-references and no
+                  separate payment reference is needed.
+                value:
+                  $ref: '../examples/on_confirm/fis15-on_confirm-03-rtgs-no-url.json'
+
+              F4_rejected:
+                summary: 'Rejected — 2FA did not match'
+                description: >-
+                  The OTP did not match the contact on record. Context plus
+                  error, no order.
+                value:
+                  $ref: '../examples/on_confirm/fis15-on_confirm-04-rejected-832021.json'
+      responses:
+        default:
+          description: ACK / NACK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ack'
+
+components:
+  schemas:
+
+    OnConfirmRequest:
+      type: object
+      additionalProperties: false
+      required: [context]
+      description: Exactly one of message or error.
+      oneOf:
+        - required: [message]
+          not: { required: [error] }
+        - required: [error]
+          not: { required: [message] }
+      properties:
+        context:
+          allOf:
+            - $ref: '#/components/schemas/Context'
+            - type: object
+              required: [action, bpp_id, bpp_uri]
+              properties:
+                action:
+                  enum: [on_confirm]
+        message:
+          type: object
+          additionalProperties: false
+          required: [order]
+          properties:
+            order:
+              $ref: '#/components/schemas/Order'
+        error:
+          $ref: '#/components/schemas/Error'
+
+    Context:
+      type: object
+      additionalProperties: false
+      required:
+        - location
+        - domain
+        - action
+        - version
+        - bap_id
+        - bap_uri
+        - bpp_id
+        - bpp_uri
+        - transaction_id
+        - message_id
+        - timestamp
+        - ttl
+      properties:
+        location:
+          type: object
+          additionalProperties: false
+          required: [country, city]
+          properties:
+            country:
+              type: object
+              properties:
+                code: { type: string, enum: [IND] }
+            city:
+              type: object
+              properties:
+                code: { type: string, enum: ['*'] }
+        domain:  { type: string, enum: [ONDC:FIS15] }
+        action:  { type: string, enum: [on_confirm] }
+        version: { type: string, example: 0.2.0 }
+        bap_id:  { type: string }
+        bap_uri: { type: string, format: uri }
+        bpp_id:  { type: string }
+        bpp_uri: { type: string, format: uri }
+        transaction_id:
+          type: string
+          format: uuid
+          description: >-
+            Still the journey's id. It continues to thread the unsolicited
+            /on_status calls that follow, which is how the buyer app correlates
+            a push it never asked for.
+        message_id: { type: string, format: uuid, description: Echoes the /confirm. }
+        timestamp:  { type: string, format: date-time }
+        ttl:        { type: string, example: PT10M }
+
+    Order:
+      type: object
+      additionalProperties: false
+      required: [id, status, provider, items, fulfillments, payments, quote, cancellation_terms, tags]
+      properties:
+        id:
+          type: string
+          example: FD-ICICI-20260902-004481
+          description: >-
+            Minted by the issuer HERE, for the first time. It is the handle for
+            every later /status, /update and unsolicited /on_status, and the
+            stem of the FD reference number. The definitive FD_RECEIPT_NUMBER
+            and DEPOSIT_ACCOUNT_NUMBER arrive later, in EXTERNAL_REFS, once the
+            deposit is actually booked.
+        status:
+          type: string
+          enum: [ACCEPTED]
+          description: >-
+            ACCEPTED means the issuer will create the deposit once payment
+            lands. It does NOT mean the deposit exists. A rejection is carried
+            in the error envelope, not as a REJECTED order.
+        provider:
+          type: object
+          additionalProperties: false
+          required: [id]
+          properties:
+            id:         { type: string }
+            descriptor: { $ref: '#/components/schemas/Descriptor' }
+        ref_order_ids:
+          type: array
+          items: { type: string }
+        items:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/Item'
+        fulfillments:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/Fulfillment'
+        payments:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/Payment'
+        quote:
+          $ref: '#/components/schemas/Quote'
+        cancellation_terms:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/CancellationTerm'
+        refund_terms:
+          type: array
+          items:
+            $ref: '#/components/schemas/RefundTerm'
+        tags:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/TagGroup'
+
+    Item:
+      type: object
+      additionalProperties: false
+      required: [id, descriptor, fulfillment_ids, quantity]
+      properties:
+        id: { type: string }
+        descriptor:
+          type: object
+          required: [name, code]
+          properties:
+            name: { type: string }
+            code: { type: string, enum: [DEPOSIT_PRODUCT, SERVICE] }
+        fulfillment_ids:
+          type: array
+          minItems: 1
+          items: { type: string }
+        quantity:
+          type: object
+          additionalProperties: false
+          required: [selected]
+          properties:
+            selected:
+              type: object
+              additionalProperties: false
+              required: [measure]
+              properties:
+                measure:
+                  type: object
+                  additionalProperties: false
+                  required: [value, unit]
+                  properties:
+                    value: { type: string }
+                    unit:  { type: string, enum: [INR] }
+
+    Fulfillment:
+      type: object
+      additionalProperties: false
+      required: [id, type, state, customer, stops, tags]
+      properties:
+        id:   { type: string }
+        type: { type: string, enum: [DEPOSIT] }
+        state:
+          type: object
+          additionalProperties: false
+          required: [descriptor]
+          properties:
+            descriptor:
+              type: object
+              additionalProperties: false
+              required: [code]
+              properties:
+                name: { type: string }
+                code:
+                  type: string
+                  enum: [PENDING]
+                  description: >-
+                    PENDING until payment lands. The order is accepted; the
+                    deposit is not created.
+        customer:
+          type: object
+          additionalProperties: false
+          required: [person]
+          properties:
+            person:
+              type: object
+              additionalProperties: false
+              required: [id]
+              properties:
+                id: { type: string }
+        stops:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            type: object
+            additionalProperties: false
+            required: [time]
+            properties:
+              time:
+                type: object
+                additionalProperties: false
+                required: [label, duration]
+                properties:
+                  label:    { type: string, enum: [TENURE] }
+                  duration: { type: string }
+          description: >-
+            Still only TENURE. VALUE_DATE and MATURITY_DATE are not known until
+            the deposit is booked and appear on a later /on_status.
+        tags:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/TagGroup'
+          description: >-
+            DEPOSIT_INFORMATION and LINKED_BANK_ACCOUNT at minimum, plus
+            NOMINEE_INFORMATION, VKYC_TERMS and — on a push rail —
+            PAYMENT_INSTRUCTION.
+
+    Payment:
+      type: object
+      additionalProperties: false
+      required: [id, collected_by, status, type, params, tags]
+      description: >-
+        Where the instruction lives depends on the rail. The if/then below bars
+        payments[].url on a push rail, because a web page the investor cannot
+        pay from is worse than no page at all.
+      properties:
+        id:
+          type: string
+          description: >-
+            Minted HERE, alongside order.id. In v0.1.0 the payment object was
+            created at /on_init; with rail selection moved to /confirm there is
+            nothing to mint until the rail is known.
+        collected_by: { type: string, enum: [BPP] }
+        status:
+          type: string
+          enum: [NOT-PAID]
+          description: Nothing has been collected yet.
+        type: { type: string, enum: [PRE_FULFILLMENT] }
+        url:
+          type: string
+          format: uri
+          description: >-
+            SINGLE-USE bank redirect page. Present for NETBANKING. Must NOT be
+            present for IMPS, NEFT or RTGS.
+        params:
+          type: object
+          additionalProperties: false
+          required: [amount, currency]
+          properties:
+            amount:   { type: string }
+            currency: { type: string, enum: [INR] }
+            url:
+              type: string
+              description: >-
+                A upi:// intent string for a QR code or app handoff, NOT a web
+                URL. Present when MODE is UPI and AUTH is URI.
+            bank_code:
+              type: string
+              description: The issuer's collection account IFSC. Push rails only.
+            bank_account_number:
+              type: string
+              description: >-
+                The issuer's collection account. Should be a PER-ORDER VIRTUAL
+                account so the credit self-references — see decisions.
+            source_bank_code:               { type: string }
+            source_bank_account_number:     { type: string }
+            source_virtual_payment_address: { type: string }
+        tags:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/PaymentMethodTagGroup'
+      if:
+        properties:
+          tags:
+            contains:
+              type: object
+              required: [list]
+              properties:
+                list:
+                  type: array
+                  contains:
+                    type: object
+                    required: [descriptor, value]
+                    properties:
+                      descriptor:
+                        type: object
+                        required: [code]
+                        properties:
+                          code: { const: MODE }
+                      value:
+                        type: string
+                        enum: [IMPS, NEFT, RTGS]
+      then:
+        not: { required: [url] }
+        properties:
+          params:
+            required: [bank_code, bank_account_number]
+
+    Quote:
+      type: object
+      additionalProperties: false
+      required: [id, price, breakup, ttl]
+      properties:
+        id:    { type: string }
+        price: { $ref: '#/components/schemas/Price' }
+        breakup:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            type: object
+            additionalProperties: false
+            required: [item, title, price]
+            properties:
+              item:
+                type: object
+                additionalProperties: false
+                properties:
+                  id:              { type: string }
+                  fulfillment_ids: { type: array, items: { type: string } }
+              title: { type: string, enum: [PRINCIPAL] }
+              price: { $ref: '#/components/schemas/Price' }
+        ttl:
+          type: string
+          description: >-
+            Now bounds how long the investor has to PAY, not how long the rate
+            holds. An unpaid order past this may be cancelled by the issuer.
+
+    Price:
+      type: object
+      additionalProperties: false
+      required: [currency, value]
+      properties:
+        currency: { type: string, enum: [INR] }
+        value:    { type: string }
+
+    CancellationTerm:
+      type: object
+      additionalProperties: false
+      required: [fulfillment_state]
+      properties:
+        fulfillment_state: { $ref: '#/components/schemas/StateRef' }
+        reason_required:   { type: boolean }
+        cancellation_fee:
+          type: object
+          additionalProperties: false
+          properties:
+            percentage: { type: string }
+            amount:     { $ref: '#/components/schemas/Price' }
+
+    RefundTerm:
+      type: object
+      additionalProperties: false
+      required: [fulfillment_state, refund_eligible]
+      properties:
+        fulfillment_state: { $ref: '#/components/schemas/StateRef' }
+        refund_eligible:   { type: boolean }
+        refund_within:
+          type: object
+          additionalProperties: false
+          properties:
+            duration: { type: string }
+        refund_amount: { $ref: '#/components/schemas/Price' }
+
+    StateRef:
+      type: object
+      additionalProperties: false
+      required: [descriptor]
+      properties:
+        descriptor:
+          type: object
+          additionalProperties: false
+          required: [code]
+          properties:
+            name: { type: string }
+            code:
+              type: string
+              enum: [PENDING, INITIATED, ACTIVE, MATURED, CLOSED_PREMATURE, FAILED, CANCELLED]
+
+    PaymentMethodTagGroup:
+      type: object
+      additionalProperties: false
+      required: [descriptor, list]
+      properties:
+        display: { type: boolean, default: false }
+        descriptor:
+          type: object
+          additionalProperties: false
+          required: [code]
+          properties:
+            name: { type: string }
+            code: { const: PAYMENT_METHOD }
+        list:
+          type: array
+          minItems: 1
+          maxItems: 2
+          items:
+            oneOf:
+              - type: object
+                additionalProperties: false
+                required: [descriptor, value]
+                properties:
+                  descriptor:
+                    type: object
+                    additionalProperties: false
+                    required: [code]
+                    properties:
+                      name: { type: string }
+                      code: { const: MODE }
+                  value:   { type: string, enum: [NETBANKING, UPI, IMPS, NEFT, RTGS] }
+                  display: { type: boolean }
+              - type: object
+                additionalProperties: false
+                required: [descriptor, value]
+                properties:
+                  descriptor:
+                    type: object
+                    additionalProperties: false
+                    required: [code]
+                    properties:
+                      name: { type: string }
+                      code: { const: AUTH }
+                  value:   { type: string, enum: [URI, COLLECT] }
+                  display: { type: boolean }
+
+    TagGroup:
+      type: object
+      additionalProperties: false
+      required: [descriptor, list]
+      properties:
+        display:    { type: boolean, default: false }
+        descriptor: { $ref: '#/components/schemas/Descriptor' }
+        list:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Tag'
+
+    Tag:
+      type: object
+      additionalProperties: false
+      required: [descriptor, value]
+      properties:
+        descriptor: { $ref: '#/components/schemas/Descriptor' }
+        value:      { type: string }
+        display:    { type: boolean }
+
+    Descriptor:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string }
+        code: { type: string }
+
+    Error:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          pattern: '^8320[0-4][0-9]$'
+        message: { type: string }
+
+    Ack:
+      type: object
+      properties:
+        message:
+          type: object
+          properties:
+            ack:
+              type: object
+              properties:
+                status: { type: string, enum: [ACK, NACK] }
+        error:
+          $ref: '#/components/schemas/Error'
+
+  x-ondc-fis15:
+
+    payment-instruction:
+      description: >-
+        The single most important branch in this call. A buyer app must switch
+        on MODE, not hunt for whichever field happens to be populated.
+      by-rail:
+        NETBANKING:
+          location: payments[].url
+          action: Redirect the browser. Single-use.
+        UPI + URI:
+          location: payments[].params.url
+          action: >-
+            Render as a QR code, or hand off to a UPI app. This is a upi://
+            intent string, NOT a web URL — passing it to a browser fails.
+        UPI + COLLECT:
+          location: payments[].params.source_virtual_payment_address
+          action: >-
+            None. The issuer sends a collect request to the investor's handle;
+            the buyer app shows a waiting state.
+        IMPS / NEFT / RTGS:
+          location: payments[].params.bank_code and bank_account_number
+          action: >-
+            Display the beneficiary details. The investor transfers from their
+            own banking channel — usually branch or corporate banking for
+            amounts above the online ceiling. No URL exists and none should be
+            looked for; the schema bars one.
+      after-the-instruction: >-
+        In every case the outcome arrives as an UNSOLICITED /on_status. For
+        redirect rails the browser also returns to <bap_uri>/callback with
+        transaction_id, status and payment_id — but that callback can be lost or
+        tampered with, so the /on_status is authoritative.
+
+    tag-groups:
+
+      PAYMENT_INSTRUCTION:
+        level: fulfillment
+        required: conditional
+        description: >-
+          ADDED IN THIS REVISION. Mandatory for push rails, where the investor
+          acts outside any interface the issuer controls and needs human-
+          readable instructions. Absent for redirect rails, where the URL is
+          the instruction.
+        list:
+          INSTRUCTION_TYPE:
+            required: mandatory
+            enum: [CREDIT_TO_VIRTUAL_ACCOUNT, CREDIT_TO_POOL_ACCOUNT]
+          BENEFICIARY_NAME:  { required: mandatory, description: As it must be entered in the transfer. }
+          PAYMENT_REFERENCE:
+            required: conditional
+            description: >-
+              Mandatory when INSTRUCTION_TYPE is CREDIT_TO_POOL_ACCOUNT — a
+              shared account cannot be reconciled without it. Optional, and
+              redundant, for a virtual account.
+          CREDIT_BY:
+            required: mandatory
+            type: datetime
+            description: >-
+              Deadline for the credit to land, derived from quote.ttl. After
+              this the issuer may cancel the order.
+          INSTRUCTION_NOTE:  { required: optional, description: Free text for display. }
+
+      PAYMENT_ADVICE:
+        level: fulfillment
+        required: conditional
+        description: >-
+          MOVED HERE FROM /on_init IN v0.2.0. Mandatory whenever the rail the
+          issuer will actually accept differs from the one chosen at /confirm.
+
+          The substitution is a last resort now, not the normal path: the
+          terminal /on_init publishes PAYMENT_OPTION with the limits, so a
+          conformant buyer app should never choose a rail that cannot carry the
+          amount. This group covers what PAYMENT_OPTION cannot — a rail that
+          went down between the terminal /on_init and /confirm. Substituting
+          silently is a conformance failure.
+        list:
+          PROPOSED_MODE:
+            required: mandatory
+            enum: [NETBANKING, UPI, IMPS, NEFT, RTGS]
+            description: The rail chosen at /confirm.
+          ACCEPTED_MODE:
+            required: mandatory
+            enum: [NETBANKING, UPI, IMPS, NEFT, RTGS]
+            description: >-
+              The rail the instruction below is actually for. The buyer app
+              must switch its payment UI to this, not the proposed one.
+          REASON_CODE:
+            required: mandatory
+            enum:
+              - AMOUNT_EXCEEDS_RAIL_LIMIT
+              - AMOUNT_BELOW_RAIL_MINIMUM
+              - RAIL_NOT_SUPPORTED
+              - RAIL_TEMPORARILY_UNAVAILABLE
+            description: >-
+              RAIL_TEMPORARILY_UNAVAILABLE is the expected value in v0.2.0. The
+              other three indicate the buyer app ignored PAYMENT_OPTION.
+          REASON_MESSAGE:
+            required: optional
+            description: Human-readable, for display to the investor.
+
+      PAYMENT_METHOD:
+        level: payment
+        required: mandatory
+        description: >-
+          DECLARED IN v0.2.0 — the payment object always carried it, but the
+          group was never written down, so it was invisible to anyone reading
+          the spec rather than the examples.
+
+          The rail the issuer ACCEPTED, which is what the buyer app must switch
+          its payment UI to. Where it differs from the rail chosen at /confirm,
+          PAYMENT_ADVICE explains why.
+        list:
+          MODE:
+            required: mandatory
+            enum: [NETBANKING, UPI, IMPS, NEFT, RTGS]
+          AUTH:
+            required: conditional
+            enum: [URI, COLLECT]
+            description: Mandatory when MODE is UPI; not permitted otherwise.
+
+      VKYC_TERMS:
+        level: fulfillment
+        required: mandatory
+        description: >-
+          Carried again because the buyer app needs it at this exact moment: if
+          sequencing is POST_PAYMENT it must warn the investor, before they pay,
+          that VKYC still stands between them and a booked deposit.
+        list:
+          VKYC_REQUIRED:   { required: mandatory, enum: ['true', 'false'] }
+          VKYC_SEQUENCING: { required: mandatory, enum: [PRE_PAYMENT, POST_PAYMENT, NOT_REQUIRED] }
+          VKYC_SLA:        { required: conditional, type: duration, description: 'Mandatory when sequencing is POST_PAYMENT.' }
+
+      BPP_TERMS:
+        level: order
+        required: mandatory
+        description: >-
+          The seller's terms. Restated on every BPP-to-BAP call so that the
+          terms in force are readable from any single response without joining
+          back to the catalog.
+        list:
+          STATIC_TERMS:     { required: mandatory, type: uri }
+          OFFLINE_CONTRACT: { required: mandatory, enum: ['true', 'false'] }
+
+    rules:
+      - TAG LEVELS ARE FIXED ACROSS THE JOURNEY. item carries the deposit's
+        economics under exactly two names. DEPOSIT_CONFIGURATION at /select and
+        /init, where the buyer app states what the investor chose.
+        DEPOSIT_INFORMATION from /on_init onward, where the issuer states the
+        resulting contract and /confirm echoes that statement back verbatim.
+        /on_select is the single exception and answers with MATURITY_PROJECTION
+        alone. Both names sit on the item, in continuation of the catalog's
+        RATE_CARD_ENTRY and PAYOUT_OPTION. THE NAME STATES THE AUTHORITY — a
+        CONFIGURATION is asked for, INFORMATION is stated. There is no
+        DEPOSIT_TERMS anywhere in FIS15. fulfillment carries the investor and
+        the servicing. payment carries money movement. order carries only
+        BAP_TERMS and BPP_TERMS, and nothing else, ever.
+      - Dates live in stops, never in a tag. stops[].time carries the tenure
+        before booking and the real VALUE_DATE and MATURITY_DATE after it.
+      - order.id AND payments[].id are both minted here. Neither exists before
+        this call.
+      - THIS RESPONSE DOES NOT RESTATE THE ORDER. DEPOSIT_INFORMATION,
+        LINKED_BANK_ACCOUNT and NOMINEE_INFORMATION are not sent — they were
+        settled earlier and signed at /confirm. A buyer app rendering the
+        booking screen composes it from what it sent plus what arrives here.
+      - cancellation_terms is mandatory and refund_terms is mandatory whenever
+        VKYC_SEQUENCING is POST_PAYMENT. This is the first point they attach to
+        a real order id, which is what makes them enforceable.
+      - VKYC_TERMS is the one echoed group that survives, because VKYC_DEADLINE
+        becomes a real instant only once payment is expected. The SLA came from
+        /on_init; the deadline is computed here.
+      - When the accepted rail differs from the one chosen at /confirm,
+        PAYMENT_ADVICE is mandatory. Substituting silently is a conformance
+        failure.
+      - order.status is ACCEPTED and fulfillment state is PENDING. Accepted is
+        not booked; the deposit does not exist until an /on_status says ACTIVE.
+      - Switch on PAYMENT_METHOD.MODE to find the instruction. Do not probe
+        fields.
+      - payments[].url must NOT be present for IMPS, NEFT or RTGS. Schema-barred.
+      - params.url for UPI is a upi:// intent string, not a web page.
+      - Redirect URLs are single-use. A second attempt needs a fresh one via
+        /update with update_target order.payments.
+      - The browser callback is a UX convenience. The unsolicited /on_status is
+        the authoritative outcome.
+      - A rejection is context plus error with NO order. There is no REJECTED
+        order status in FIS15 — an order that was never created has no state.
+
+    decisions:
+      response-slimmed:
+        change: >-
+          DEPOSIT_INFORMATION, LINKED_BANK_ACCOUNT and NOMINEE_INFORMATION were
+          removed from /on_confirm, and items[] no longer carries a tag group.
+          What remains is the order id and status, the payment object with its
+          instruction, the cancellation and refund terms, and VKYC_TERMS.
+        why: >-
+          /confirm now states the whole agreement, so echoing it back doubled
+          the bytes and created a second place for the same facts to be wrong.
+          The response says what the request could not know: the id the issuer
+          minted, how to pay, and on what terms the money comes back.
+      vkyc-terms-kept:
+        change: VKYC_TERMS survives the slimming.
+        why: >-
+          VKYC_SEQUENCING and VKYC_SLA were settled at /on_init, but
+          VKYC_DEADLINE is an instant, not a duration, and it cannot be computed
+          until there is an order to hang it on. A POST_PAYMENT flow where the
+          investor cannot see the deadline is how refunds get argued about.
+      no-rejected-status:
+        change: >-
+          order.status enum is [ACCEPTED] only; a rejection uses the error
+          envelope.
+        why: >-
+          The earlier draft allowed a REJECTED order, which meant a buyer app
+          had to check two places for the same outcome — status and error. An
+          order the issuer refused to create has no lifecycle, so representing
+          it as an order with a state was misleading.
+      url-barred-on-push-rails:
+        change: if/then barring payments[].url when MODE is IMPS, NEFT or RTGS.
+        why: >-
+          A redirect page for a rail the investor pays from their own banking
+          channel is worse than no page — it implies an action the buyer app
+          cannot complete. Making it a schema failure removes the temptation to
+          send a generic landing page.
+      virtual-account-preferred:
+        change: >-
+          PAYMENT_INSTRUCTION distinguishes CREDIT_TO_VIRTUAL_ACCOUNT from
+          CREDIT_TO_POOL_ACCOUNT, and PAYMENT_REFERENCE is mandatory only for
+          the latter.
+        why: >-
+          This closes the collection-account open point raised in
+          FIS15_on_init_API.yaml. A per-order virtual account makes the credit
+          self-referencing and removes the reconciliation risk entirely; a pool
+          account is permitted but must then carry a reference the investor is
+          obliged to quote, which is fragile because it depends on the investor
+          typing it correctly.
+      ttl-changes-meaning:
+        change: quote.ttl is documented here as a PAYMENT deadline.
+        why: >-
+          Up to /on_init it bounded how long the rate was held. Once the order
+          is accepted the rate is fixed, and the same field now bounds how long
+          the investor has to pay. Same field, different job — worth stating,
+          because a buyer app that keeps rendering it as "rate expires in" will
+          mislead the investor.
+
+    open-points:
+      unpaid-order-expiry:
+        status: unresolved
+        question: >-
+          quote.ttl bounds the payment window, but nothing says what the issuer
+          does when it lapses. Silent cancellation and indefinite waiting are
+          both currently conformant.
+        recommendation: >-
+          Require an /on_status carrying CANCELLED with a reason when an order
+          expires unpaid, so the buyer app can close the loop rather than poll.
+      partial-credit:
+        status: unresolved
+        question: >-
+          On a push rail the investor types the amount themselves and may send
+          the wrong one. The protocol has no way to express "received
+          34,50,000 against an order for 35,00,000".
+        recommendation: >-
+          Define a PARTIAL payment status, or require the issuer to reject and
+          refund a mismatched credit. The second is simpler and probably right
+          for a first release.
+      upi-intent-rendering:
+        status: unresolved
+        question: >-
+          params.url carries a upi:// string but nothing marks it as an intent
+          rather than a web URL. A buyer app that passes it to a browser gets a
+          silent failure.
+        recommendation: >-
+          Either a distinct params field name for intent strings, or a
+          conformance requirement that buyer apps switch on AUTH before using
+          params.url.
+
+    source:
+      derived-from:
+        - FD_ONDC_FIS15_API_Spec.md (section 8.2)
+        - FD_ONDC_FIS15_Schema.xlsx (API Fields, on_confirm rows — 38 fields)
+        - FD_ONDC_BRD_Final.docx v1.0, Flow > Order Review & Payment
+      chains-with:
+        - FIS15_confirm_API.yaml — answers it
+        - FIS15_on_init_API.yaml — binding quote id and PAYMENT_OPTION carry forward
+      beckn-core: 1.3.0

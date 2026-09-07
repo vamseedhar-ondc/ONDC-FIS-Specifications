@@ -1,0 +1,26 @@
+{
+    "context": {
+        "location": {
+            "country": {
+                "code": "IND"
+            },
+            "city": {
+                "code": "*"
+            }
+        },
+        "domain": "ONDC:FIS15",
+        "action": "status",
+        "version": "0.2.0",
+        "bap_id": "api.buyerapp.com",
+        "bap_uri": "https://api.buyerapp.com/ondc",
+        "bpp_id": "api.icicibank.com",
+        "bpp_uri": "https://api.icicibank.com/ondc",
+        "transaction_id": "e9895269-e7a9-4003-9ebc-534413a6017b",
+        "message_id": "4a17c9e5-2b83-4f60-8d14-7c05e3b19a28",
+        "timestamp": "2026-09-02T09:52:00.000Z",
+        "ttl": "PT10M"
+    },
+    "message": {
+        "order_id": "FD-ICICI-20260902-004481"
+    }
+}

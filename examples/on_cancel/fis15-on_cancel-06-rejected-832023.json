@@ -1,0 +1,27 @@
+{
+  "context": {
+    "location": {
+      "country": {
+        "code": "IND"
+      },
+      "city": {
+        "code": "*"
+      }
+    },
+    "domain": "ONDC:FIS15",
+    "action": "on_cancel",
+    "version": "0.2.0",
+    "bap_id": "api.buyerapp.com",
+    "bap_uri": "https://api.buyerapp.com/ondc",
+    "bpp_id": "api.icicibank.com",
+    "bpp_uri": "https://api.icicibank.com/ondc",
+    "transaction_id": "b6f30d81-4e29-4a75-9c18-207da4e6153b",
+    "message_id": "a4c81f60-3d97-42b5-8e01-7b25c9f0a318",
+    "timestamp": "2027-12-14T09:26:44.000Z",
+    "ttl": "PT10M"
+  },
+  "error": {
+    "code": "832023",
+    "message": "Deposit FD-ICICI-20261110-006104 is a Section 80C tax-saver with a 1825-day statutory lock-in and cannot be withdrawn before 2031-11-10. 400 days have run. No premature withdrawal, full or partial, is available on this product."
+  }
+}

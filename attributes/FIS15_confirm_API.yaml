@@ -1,0 +1,1101 @@
+openapi: 3.0.0
+info:
+  title: ONDC FIS15 — Confirm API
+  description: >-
+    BAP → BPP order commitment. A near-verbatim echo of the order agreed at the
+    terminal /on_init, plus the three things that have not appeared before: the
+    FUNDING ACCOUNT, the PAYMENT RAIL, and the 2FA OTP.
+
+    STILL NO MONEY MOVES. /confirm is the commitment, not the payment. The
+    investor pays only after /on_confirm returns a payment instruction. Teams
+    consistently place payment before /confirm; it is the single most common
+    sequencing error in the journey.
+
+    THE LAST THREE DECISIONS LIVE HERE. In v0.1.0 the account and the rail were
+    asserted at /init, one round trip earlier. They moved here in v0.2.0 so
+    that everything the investor decides at the point of paying — which account
+    to debit, which app to pay from, and the authentication of both — is
+    carried by one call. The rail must be one of the PAYMENT_OPTION groups the
+    terminal /on_init advertised; choosing outside that set is 832029.
+
+    THE COMPLETE STATEMENT. /confirm restates everything the order consists of
+    — the deposit's full terms on the item, the investor's structural facts and
+    the display-safe details the issuer collected on the fulfillment, the chosen
+    account, and the chosen payment rail with its amount. Nothing is left to be
+    inferred from an earlier call. That redundancy is the point: this is the
+    payload both sides sign, and the issuer diffs it against what it holds.
+
+    /on_confirm answers narrowly by comparison — the order id, the payment
+    instruction, and the terms on which the money can come back.
+
+    TWO THINGS MAKE THIS THE SIGNED AGREEMENT, and both are schema-enforced
+    here rather than merely documented. First, a 2FA credential —
+    2FA_PHONE_OTP or 2FA_EMAIL_OTP — sent on the contact the issuer holds.
+    FIS14 sends an OTP only for instant redemption; FIS15 requires one on every
+    booking, because every booking moves investor money into a new liability
+    contract. Second, BOTH terms blocks in order.tags: the buyer app's
+    BAP_TERMS and the seller's BPP_TERMS, side by side. Either one alone is not
+    an agreement.
+
+    Domain code ONDC:FIS15 and error range 832001-832042 are requested from
+    ONDC and not yet allocated.
+  version: 0.2.0
+
+servers:
+  - url: https://api.icicibank.com/ondc
+    description: BPP (seller app) endpoint
+
+paths:
+  /confirm:
+    post:
+      summary: Commit to the agreed order with 2FA
+      description: >-
+        Returns an ACK/NACK synchronously; the accepted or rejected order
+        arrives on /on_confirm, together with the payment URL. Must be sent
+        before the TERMINAL /on_init quote.ttl elapses, or the issuer rejects
+        with 832031 and the buyer app must re-send the terminal /init round to
+        obtain a fresh binding quote — not retry /confirm.
+      operationId: confirm
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmRequest'
+            examples:
+              C1_phone_otp:
+                summary: '2FA by mobile OTP — the common case'
+                description: >-
+                  Rs 5,00,000 cumulative on the NETBANKING rail, authenticated
+                  by mobile OTP. Echoes the binding DEPOSIT_INFORMATION and
+                  quote quote_fd_5l_400d_625 from the terminal /on_init, with
+                  account ba_7f21c9ae and the rail chosen here. NETBANKING is
+                  the only advertised option whose MAX_AMOUNT clears
+                  Rs 5,00,000 — UPI caps at Rs 1,00,000 and IMPS at
+                  Rs 5,00,000 gross, so either would be 832029.
+                value:
+                  $ref: '../examples/confirm/fis15-confirm-01-phone-otp.json'
+
+              C2_email_otp:
+                summary: '2FA by email OTP — the alternative'
+                description: >-
+                  The same deposit, the same rail and the same quote as C1, and
+                  the ONLY difference is the credential type — 2FA_EMAIL_OTP
+                  instead of 2FA_PHONE_OTP. Read the two side by side to see
+                  that the choice of 2FA changes nothing else in the payload.
+                  Note there is no payments[].id on either; the issuer mints it
+                  at /on_confirm.
+                value:
+                  $ref: '../examples/confirm/fis15-confirm-02-email-otp.json'
+
+              C3_etb_rtgs_bulk:
+                summary: 'Bulk, ETB, RTGS — no form chain to echo'
+                description: >-
+                  Rs 3.5 crore on the ETB fast path, so no xinput. Continues
+                  transaction 7c1f0a34 and quote quote_fd_35cr_550d_680 from
+                  the terminal /on_init at C4 of that chain. Carries the
+                  issuer's collection account in params, because RTGS is a push
+                  rail and no payment URL will follow.
+                value:
+                  $ref: '../examples/confirm/fis15-confirm-03-etb-rtgs-bulk.json'
+      responses:
+        default:
+          description: ACK / NACK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ack'
+
+components:
+  schemas:
+
+    ConfirmRequest:
+      type: object
+      additionalProperties: false
+      required: [context, message]
+      properties:
+        context:
+          allOf:
+            - $ref: '#/components/schemas/Context'
+            - type: object
+              required: [action, bpp_id, bpp_uri]
+              properties:
+                action:
+                  enum: [confirm]
+        message:
+          type: object
+          additionalProperties: false
+          required: [order]
+          properties:
+            order:
+              $ref: '#/components/schemas/Order'
+
+    Context:
+      type: object
+      additionalProperties: false
+      required:
+        - location
+        - domain
+        - action
+        - version
+        - bap_id
+        - bap_uri
+        - bpp_id
+        - bpp_uri
+        - transaction_id
+        - message_id
+        - timestamp
+        - ttl
+      properties:
+        location:
+          type: object
+          additionalProperties: false
+          required: [country, city]
+          properties:
+            country:
+              type: object
+              properties:
+                code: { type: string, enum: [IND] }
+            city:
+              type: object
+              properties:
+                code: { type: string, enum: ['*'] }
+        domain:  { type: string, enum: [ONDC:FIS15] }
+        action:  { type: string, enum: [confirm] }
+        version: { type: string, example: 0.2.0 }
+        bap_id:  { type: string }
+        bap_uri: { type: string, format: uri }
+        bpp_id:  { type: string }
+        bpp_uri: { type: string, format: uri }
+        transaction_id:
+          type: string
+          format: uuid
+          description: >-
+            Unchanged since the opening /select. Item id, amount, tenure and
+            PAN must still match round 1 exactly, or 832042.
+        message_id: { type: string, format: uuid }
+        timestamp:
+          type: string
+          format: date-time
+          description: >-
+            Must fall inside the TERMINAL /on_init quote.ttl window. Later than
+            that is 832031.
+        ttl: { type: string, example: PT10M }
+
+    Order:
+      type: object
+      additionalProperties: false
+      required: [provider, items, fulfillments, payments, quote, tags]
+      properties:
+        provider:
+          type: object
+          additionalProperties: false
+          required: [id]
+          properties:
+            id: { type: string }
+        ref_order_ids:
+          type: array
+          items: { type: string }
+        items:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/Item'
+        fulfillments:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/Fulfillment'
+        payments:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/Payment'
+        quote:
+          $ref: '#/components/schemas/QuoteEcho'
+        xinput:
+          $ref: '#/components/schemas/XInputEcho'
+        tags:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items:
+            $ref: '#/components/schemas/TermsTagGroup'
+          allOf:
+            - contains:
+                type: object
+                required: [descriptor]
+                properties:
+                  descriptor:
+                    type: object
+                    required: [code]
+                    properties:
+                      code: { const: BAP_TERMS }
+            - contains:
+                type: object
+                required: [descriptor]
+                properties:
+                  descriptor:
+                    type: object
+                    required: [code]
+                    properties:
+                      code: { const: BPP_TERMS }
+          description: >-
+            BOTH terms blocks, enforced by schema. This is the only call in the
+            journey carrying the buyer's and the seller's terms together, and
+            that pairing is what makes it the agreement.
+
+    Item:
+      type: object
+      additionalProperties: false
+      required: [id, fulfillment_ids, quantity, tags]
+      properties:
+        id: { type: string }
+        fulfillment_ids:
+          type: array
+          minItems: 1
+          items: { type: string }
+        quantity:
+          type: object
+          additionalProperties: false
+          required: [selected]
+          properties:
+            selected:
+              type: object
+              additionalProperties: false
+              required: [measure]
+              properties:
+                measure:
+                  type: object
+                  additionalProperties: false
+                  required: [value, unit]
+                  properties:
+                    value: { type: string }
+                    unit:  { type: string, enum: [INR] }
+
+        tags:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/TagGroup'
+          description: >-
+            Carries the deposit economics — DEPOSIT_INFORMATION. Item level, in
+            continuation of the catalog's RATE_CARD_ENTRY and PAYOUT_OPTION,
+            which sit on the item too.
+    Fulfillment:
+      type: object
+      additionalProperties: false
+      required: [id, type, customer, agent, stops, tags]
+      properties:
+        id:   { type: string }
+        type: { type: string, enum: [DEPOSIT] }
+        customer:
+          type: object
+          additionalProperties: false
+          required: [person, contact]
+          properties:
+            person:
+              type: object
+              additionalProperties: false
+              required: [id, creds]
+              properties:
+                id:
+                  type: string
+                  pattern: '^pan:[a-zA-Z]{5}[0-9]{4}[a-zA-Z]$'
+                creds:
+                  type: array
+                  minItems: 3
+                  items:
+                    $ref: '#/components/schemas/Credential'
+                  allOf:
+                    - contains:
+                        type: object
+                        required: [type]
+                        properties:
+                          type: { const: PAN }
+                    - contains:
+                        type: object
+                        required: [type]
+                        properties:
+                          type: { const: IP_ADDRESS }
+                    - contains:
+                        type: object
+                        required: [type]
+                        properties:
+                          type:
+                            type: string
+                            enum: [2FA_PHONE_OTP, 2FA_EMAIL_OTP]
+                  description: >-
+                    PAN, IP_ADDRESS and exactly one 2FA credential are all
+                    required, enforced by schema. A /confirm without an OTP is
+                    not a valid commitment.
+            contact:
+              type: object
+              additionalProperties: false
+              required: [phone]
+              properties:
+                phone:
+                  type: string
+                  description: >-
+                    The contact the OTP went to. Must match one the issuer holds
+                    for this investor, or 832021.
+                email: { type: string }
+        agent:
+          type: object
+          additionalProperties: false
+          required: [organization]
+          properties:
+            organization:
+              type: object
+              additionalProperties: false
+              required: [creds]
+              properties:
+                creds:
+                  type: array
+                  minItems: 1
+                  items:
+                    $ref: '#/components/schemas/Credential'
+        stops:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            type: object
+            additionalProperties: false
+            required: [time]
+            properties:
+              time:
+                type: object
+                additionalProperties: false
+                required: [label, duration]
+                properties:
+                  label:    { type: string, enum: [TENURE] }
+                  duration: { type: string }
+        tags:
+          type: array
+          minItems: 2
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/TagGroup'
+          description: >-
+            INVESTOR_INFORMATION, the FULL binding DEPOSIT_INFORMATION as agreed at
+            the terminal /on_init, and LINKED_BANK_ACCOUNT carrying the
+            IDENTIFIER of the account the investor chose to fund from.
+          contains:
+            $ref: '#/components/schemas/LinkedAccountAssertionTagGroup'
+
+    Payment:
+      type: object
+      additionalProperties: false
+      required: [collected_by, status, type, params, tags]
+      description: >-
+        The rail the investor CHOSE, from the PAYMENT_OPTION groups the
+        terminal /on_init advertised. There is no payment id yet — the issuer
+        mints it at /on_confirm alongside order.id. No `url` property exists
+        here — the link is issued at /on_confirm, one step later.
+      properties:
+        collected_by: { type: string, enum: [BPP] }
+        status:
+          type: string
+          enum: [NOT-PAID]
+          description: Still NOT-PAID. Nothing has been collected.
+        type: { type: string, enum: [PRE_FULFILLMENT] }
+        params:
+          type: object
+          additionalProperties: false
+          required: [amount, currency]
+          properties:
+            amount:
+              type: string
+              description: Must equal quote.price.value, or 832030.
+            currency: { type: string, enum: [INR] }
+            bank_code:                      { type: string }
+            bank_account_number:            { type: string }
+            source_bank_code:               { type: string }
+            source_bank_account_number:     { type: string }
+            source_virtual_payment_address: { type: string }
+        tags:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/PaymentMethodTagGroup'
+
+    QuoteEcho:
+      type: object
+      additionalProperties: false
+      required: [id, price]
+      description: >-
+        An ECHO, not a re-quote. The buyer app returns the quote id and price it
+        agreed to; breakup and ttl are the seller's and are not sent back.
+      properties:
+        id:    { type: string }
+        price: { $ref: '#/components/schemas/Price' }
+
+    Price:
+      type: object
+      additionalProperties: false
+      required: [currency, value]
+      properties:
+        currency: { type: string, enum: [INR] }
+        value:    { type: string }
+
+    Credential:
+      type: object
+      additionalProperties: false
+      required: [id, type]
+      properties:
+        id: { type: string }
+        type:
+          type: string
+          enum:
+            - PAN
+            - FORM_60
+            - IP_ADDRESS
+            - INDIA_TAX_RESIDENCY_STATUS
+            - 2FA_PHONE_OTP
+            - 2FA_EMAIL_OTP
+            - DEPOSIT_ACCOUNT
+            - PASSPORT
+            - HUF_PAN
+            - GUARDIAN_PAN
+            - CIN
+            - ONDC_SUBSCRIBER_ID
+            - DISTRIBUTOR_CODE
+
+    XInputEcho:
+      type: object
+      additionalProperties: false
+      required: [form, form_response]
+      description: Echoes the last form of the chain. Absent on the ETB fast path.
+      properties:
+        form:
+          type: object
+          additionalProperties: false
+          required: [id]
+          properties:
+            id: { type: string }
+        form_response:
+          type: object
+          additionalProperties: false
+          required: [submission_id]
+          properties:
+            submission_id: { type: string }
+
+    PaymentMethodTagGroup:
+      type: object
+      additionalProperties: false
+      required: [descriptor, list]
+      properties:
+        display: { type: boolean, default: false }
+        descriptor:
+          type: object
+          additionalProperties: false
+          required: [code]
+          properties:
+            name: { type: string }
+            code: { const: PAYMENT_METHOD }
+        list:
+          type: array
+          minItems: 1
+          maxItems: 2
+          items:
+            oneOf:
+              - type: object
+                additionalProperties: false
+                required: [descriptor, value]
+                properties:
+                  descriptor:
+                    type: object
+                    additionalProperties: false
+                    required: [code]
+                    properties:
+                      name: { type: string }
+                      code: { const: MODE }
+                  value: { type: string, enum: [NETBANKING, UPI, IMPS, NEFT, RTGS] }
+                  display: { type: boolean }
+              - type: object
+                additionalProperties: false
+                required: [descriptor, value]
+                properties:
+                  descriptor:
+                    type: object
+                    additionalProperties: false
+                    required: [code]
+                    properties:
+                      name: { type: string }
+                      code: { const: AUTH }
+                  value: { type: string, enum: [URI, COLLECT] }
+                  display: { type: boolean }
+      if:
+        properties:
+          list:
+            contains:
+              type: object
+              required: [descriptor]
+              properties:
+                descriptor:
+                  type: object
+                  required: [code]
+                  properties:
+                    code: { const: AUTH }
+      then:
+        properties:
+          list:
+            contains:
+              type: object
+              required: [descriptor, value]
+              properties:
+                descriptor:
+                  type: object
+                  required: [code]
+                  properties:
+                    code: { const: MODE }
+                value: { const: UPI }
+
+    LinkedAccountAssertionTagGroup:
+      type: object
+      additionalProperties: false
+      required: [descriptor, list]
+      description: >-
+        IDENTIFIER and ACCOUNT_ROLE only. The masked number, IFSC and holder
+        name came from the terminal /on_init and must not be echoed back.
+      properties:
+        display: { type: boolean, default: false }
+        descriptor:
+          type: object
+          additionalProperties: false
+          required: [code]
+          properties:
+            name: { type: string }
+            code: { const: LINKED_BANK_ACCOUNT }
+        list:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items:
+            oneOf:
+              - type: object
+                additionalProperties: false
+                required: [descriptor, value]
+                properties:
+                  descriptor:
+                    type: object
+                    additionalProperties: false
+                    required: [code]
+                    properties:
+                      name: { type: string }
+                      code: { const: IDENTIFIER }
+                  value:   { type: string }
+                  display: { type: boolean }
+              - type: object
+                additionalProperties: false
+                required: [descriptor, value]
+                properties:
+                  descriptor:
+                    type: object
+                    additionalProperties: false
+                    required: [code]
+                    properties:
+                      name: { type: string }
+                      code: { const: ACCOUNT_ROLE }
+                  value:   { type: string, enum: [FUNDING, PAYOUT, BOTH] }
+                  display: { type: boolean }
+
+    TermsTagGroup:
+      type: object
+      additionalProperties: false
+      required: [descriptor, list]
+      properties:
+        display: { type: boolean, default: false }
+        descriptor:
+          type: object
+          additionalProperties: false
+          required: [code]
+          properties:
+            name: { type: string }
+            code: { type: string, enum: [BAP_TERMS, BPP_TERMS] }
+        list:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items:
+            $ref: '#/components/schemas/Tag'
+
+    TagGroup:
+      type: object
+      additionalProperties: false
+      required: [descriptor, list]
+      properties:
+        display:    { type: boolean, default: false }
+        descriptor: { $ref: '#/components/schemas/Descriptor' }
+        list:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Tag'
+
+    Tag:
+      type: object
+      additionalProperties: false
+      required: [descriptor, value]
+      properties:
+        descriptor: { $ref: '#/components/schemas/Descriptor' }
+        value:      { type: string }
+        display:    { type: boolean }
+
+    Descriptor:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string }
+        code: { type: string }
+
+    Ack:
+      type: object
+      properties:
+        message:
+          type: object
+          properties:
+            ack:
+              type: object
+              properties:
+                status: { type: string, enum: [ACK, NACK] }
+        error:
+          type: object
+          properties:
+            code:    { type: string }
+            message: { type: string }
+
+  x-ondc-fis15:
+
+    two-factor-authentication:
+      description: >-
+        The buyer app's obligation, and the one place in FIS15 where an
+        authentication secret travels on the wire.
+      rules:
+      - TAG LEVELS ARE FIXED ACROSS THE JOURNEY. item carries the deposit's
+        economics under exactly two names. DEPOSIT_CONFIGURATION at /select and
+        /init, where the buyer app states what the investor chose.
+        DEPOSIT_INFORMATION from /on_init onward, where the issuer states the
+        resulting contract and /confirm echoes that statement back verbatim.
+        /on_select is the single exception and answers with MATURITY_PROJECTION
+        alone. Both names sit on the item, in continuation of the catalog's
+        RATE_CARD_ENTRY and PAYOUT_OPTION. THE NAME STATES THE AUTHORITY — a
+        CONFIGURATION is asked for, INFORMATION is stated. There is no
+        DEPOSIT_TERMS anywhere in FIS15. fulfillment carries the investor and
+        the servicing. payment carries money movement. order carries only
+        BAP_TERMS and BPP_TERMS, and nothing else, ever.
+      - Dates live in stops, never in a tag. stops[].time carries the tenure
+        before booking and the real VALUE_DATE and MATURITY_DATE after it.
+        - The OTP must be sent to a contact the ISSUER holds for this investor,
+          not one the buyer app collected independently. For an existing folio
+          that is the registered mobile or email; for a new one it is the
+          communication detail captured in the folio-opening form.
+        - Exactly one of 2FA_PHONE_OTP or 2FA_EMAIL_OTP. Sending both is not a
+          stronger assertion, it is an ambiguous one.
+        - The OTP is a second factor. The first is whatever the buyer app used
+          to authenticate the session; the protocol does not carry it, and the
+          issuer does not verify it.
+        - A mismatch against the issuer's record is 832021 and the order is not
+          created.
+      contrast-with-fis14: >-
+        FIS14 sends an OTP cred only for instant redemption, treating clickwrap
+        consent plus IP address as sufficient for a purchase. FIS15 requires one
+        on every booking: an FD moves investor money into a new liability
+        contract with a multi-year term, and the BRD's flow shows an explicit
+        2FA step before payment.
+
+    tag-groups:
+
+      DEPOSIT_INFORMATION:
+        level: item
+        required: mandatory
+        cardinality: once
+        description: >-
+          THE WHOLE DEPOSIT, IN ONE GROUP. Renamed from DEPOSIT_TERMS in v0.2.0
+          and merged with the projection: the contracted terms and the numbers
+          they produce now travel together, because this is the payload the
+          investor signs and a signature over terms without their consequences
+          is worth less.
+
+          Every value is echoed from the terminal /on_init. The buyer app
+          calculates nothing here — it restates what the issuer computed, and
+          the issuer diffs it against what it holds. Any difference is 832042,
+          detected at the last point where it still matters.
+
+          The depositor category is NOT here. It is an attribute of the
+          investor, and it sits in INVESTOR_INFORMATION on the fulfillment.
+        list:
+          PRINCIPAL:
+            required: mandatory
+            type: decimal
+            description: Echoes items[].quantity.selected.measure.value.
+          TENURE_DAYS:
+            required: mandatory
+            type: integer
+            description: >-
+              The contracted tenure in days. Must equal the duration in
+              stops[].time, expressed in the unit the rate card is keyed on.
+          INTEREST_RATE:
+            required: mandatory
+            type: decimal
+            description: The contracted rate, % p.a.
+          ANNUALISED_YIELD:
+            required: mandatory
+            type: decimal
+            description: >-
+              Effective yield p.a. Equal to INTEREST_RATE when PAYOUT_FREQUENCY
+              is not CUMULATIVE, because nothing compounds.
+          PAYOUT_FREQUENCY:
+            required: mandatory
+            enum: [CUMULATIVE, MONTHLY, QUARTERLY, HALF_YEARLY, ANNUAL]
+            description: >-
+              THE BRANCH KEY, as at /select. CUMULATIVE means MATURITY_AMOUNT is
+              principal plus interest and the three per-payout fields are
+              absent; anything else means MATURITY_AMOUNT is the principal alone
+              and all three are present.
+          COMPOUNDING_FREQUENCY:
+            required: mandatory
+            type: duration
+            description: >-
+              ISO 8601. P0D whenever PAYOUT_FREQUENCY is not CUMULATIVE —
+              interest that is paid out does not compound.
+          MATURITY_INSTRUCTION:
+            required: mandatory
+            enum: [CREDIT_TO_BANK, RENEW_PRINCIPAL, RENEW_PRINCIPAL_AND_INTEREST]
+          MATURITY_AMOUNT:
+            required: mandatory
+            type: decimal
+            description: >-
+              CUMULATIVE — principal plus compounded interest. Otherwise the
+              PRINCIPAL ALONE, because the interest was paid out along the way.
+              It is not a projection of what a renewal would be worth.
+          TOTAL_INTEREST:
+            required: mandatory
+            type: decimal
+            description: Gross interest over the full tenure, before tax.
+          INTEREST_PER_PAYOUT:
+            required: conditional
+            type: decimal
+            description: Mandatory when PAYOUT_FREQUENCY is not CUMULATIVE.
+          PAYOUT_COUNT:
+            required: conditional
+            type: integer
+            description: >-
+              Mandatory when PAYOUT_FREQUENCY is not CUMULATIVE. Full payout
+              periods in the tenure.
+          FINAL_STUB_INTEREST:
+            required: conditional
+            type: decimal
+            description: >-
+              Mandatory when PAYOUT_FREQUENCY is not CUMULATIVE. PAYOUT_COUNT x
+              INTEREST_PER_PAYOUT plus this must equal TOTAL_INTEREST, exactly.
+          TDS_ESTIMATED:
+            required: mandatory
+            type: decimal
+            description: >-
+              As computed by the issuer at the terminal /on_init, against the
+              investor's actual holdings. Legitimately 0 only when annual
+              accrual falls below the s.194A threshold — on a deposit large
+              enough to breach it, a 0 here is an error the issuer should
+              reject rather than accept.
+          NET_MATURITY_AMOUNT:
+            required: conditional
+            type: decimal
+            description: >-
+              Mandatory when PAYOUT_FREQUENCY is CUMULATIVE — MATURITY_AMOUNT
+              less TDS_ESTIMATED. Omitted on a periodic deposit, where the
+              interest arrived net of TDS along the way and the principal
+              returns whole.
+          PROJECTION_BASIS:
+            required: optional
+            description: >-
+              The assumptions behind the figures, in words. Must describe THIS
+              deposit — a basis carried over from another quote is a defect the
+              investor will read as a statement about their own money.
+
+      INVESTOR_INFORMATION:
+        level: fulfillment
+        required: mandatory
+        description: >-
+          WHO THE ISSUER ESTABLISHED THE INVESTOR TO BE, echoed back as part of
+          the signed statement. Every value here is a fact the ISSUER determined
+          and returned — INVESTOR_CATEGORY and DEPOSITOR_CATEGORY in
+          INVESTOR_STATUS on the terminal /on_init, the rest from the KYC record
+          behind the form chain. The buyer app restates them and asserts nothing;
+          a value the issuer did not state is 832042.
+
+          The description here said "unchanged since /select" until this
+          revision, which stopped being true in v0.2.0 when identity moved out of
+          /select. None of these fields travel on that call — the only investor
+          attribute /select carries is a CLAIMED depositor category inside
+          DEPOSIT_CONFIGURATION, and a claim is not what is being echoed here.
+        list:
+          INVESTOR_CATEGORY:
+            required: mandatory
+            enum: [INDIVIDUAL, JOINT, MINOR, HUF, NRI, CORPORATE]
+            description: >-
+              The entity type, as returned in INVESTOR_STATUS on the terminal
+              /on_init. Until this revision the field was mandatory here and
+              produced by nothing — the buyer app was required to sign a value it
+              had no way to obtain, and the reference examples filled the hole
+              with INDIVIDUAL, which had no enum anywhere in the spec.
+          DEPOSITOR_CATEGORY:
+            required: mandatory
+            enum: [GENERAL, SENIOR_CITIZEN, SUPER_SENIOR_CITIZEN, STAFF, NRE, NRO]
+            description: >-
+              The category the issuer DETERMINED and priced at, from
+              INVESTOR_STATUS — not the claim sent at /select. Where the two
+              differ the /on_select quote no longer applies and the chain should
+              already have said so.
+          RESIDENCY_STATUS:
+            required: mandatory
+            enum: [RESIDENT, NON_RESIDENT]
+            description: >-
+              Absent from INVESTOR_INFORMATION at /init means RESIDENT, so a
+              resident individual sends RESIDENT here having sent nothing
+              earlier. The issuer's own check is TAX_RESIDENCY in
+              INVESTOR_DETAILS, which must agree.
+          MODE_OF_OPERATION:
+            required: conditional
+            enum: [EITHER_OR_SURVIVOR, JOINTLY, FORMER_OR_SURVIVOR]
+            description: Mandatory when INVESTOR_CATEGORY is JOINT.
+          HOLDER_COUNT:
+            required: conditional
+            type: integer
+            description: Mandatory when INVESTOR_CATEGORY is JOINT.
+          NRI_ACCOUNT_TYPE:
+            required: conditional
+            enum: [NRE, NRO]
+            description: >-
+              Mandatory when RESIDENCY_STATUS is NON_RESIDENT. Determines the
+              permitted funding account and the TDS treatment.
+
+      INVESTOR_DETAILS:
+        level: fulfillment
+        required: conditional
+        cardinality: once
+        description: >-
+          ADDED IN v0.2.0. The display-safe summary the issuer built up across
+          /on_init, echoed back verbatim. Mandatory whenever /on_init sent it —
+          absent only on a chain that produced none.
+
+          MASKED VALUES ONLY, exactly as received. The buyer app must not
+          unmask, complete or correct anything here; it is echoing the issuer's
+          own record so that what the investor saw on the confirmation screen is
+          part of what both sides signed. A value that differs from what
+          /on_init sent is 832042.
+        list:
+          NAME_AS_PER_PAN:  { required: conditional }
+          DOB_YEAR:         { required: conditional, type: integer }
+          ADDRESS_CITY:     { required: conditional }
+          ADDRESS_STATE:    { required: conditional }
+          ADDRESS_PINCODE:  { required: conditional }
+          EMAIL_MASKED:     { required: conditional }
+          MOBILE_MASKED:    { required: conditional }
+          OCCUPATION:       { required: optional }
+          INCOME_BAND:      { required: optional }
+          TAX_RESIDENCY:    { required: conditional, enum: [RESIDENT_INDIA, NON_RESIDENT] }
+
+      LINKED_BANK_ACCOUNT:
+        level: fulfillment
+        required: mandatory
+        description: IDENTIFIER and ACCOUNT_ROLE only, schema-enforced.
+        list:
+          IDENTIFIER:   { required: mandatory }
+          ACCOUNT_ROLE: { required: mandatory, enum: [FUNDING, PAYOUT, BOTH] }
+
+      PAYMENT_METHOD:
+        level: payment
+        required: mandatory
+        description: >-
+          The rail the investor CHOSE from PAYMENT_OPTION, which may not be the one
+          proposed. Echo what came back, not what was asked for.
+        list:
+          MODE: { required: mandatory, enum: [NETBANKING, UPI, IMPS, NEFT, RTGS] }
+          AUTH: { required: conditional, enum: [URI, COLLECT], description: Mandatory when MODE is UPI. }
+
+      BAP_TERMS:
+        level: order
+        required: mandatory
+        list:
+          STATIC_TERMS:     { required: mandatory, type: uri }
+          OFFLINE_CONTRACT: { required: mandatory, enum: ['true', 'false'] }
+
+      BPP_TERMS:
+        level: order
+        required: mandatory
+        description: >-
+          The seller's terms, echoed back by the buyer app. Present ONLY on
+          /confirm — on every other BAP-to-BPP call the buyer app sends its own
+          terms alone.
+        list:
+          STATIC_TERMS:     { required: mandatory, type: uri }
+          OFFLINE_CONTRACT: { required: mandatory, enum: ['true', 'false'] }
+
+    rules:
+      - No money moves at /confirm. The payment URL arrives at /on_confirm and
+        the investor pays after that.
+      - A 2FA credential is mandatory. Exactly one of 2FA_PHONE_OTP or
+        2FA_EMAIL_OTP, on a contact the issuer holds.
+      - Both BAP_TERMS and BPP_TERMS must be present in order.tags. Either alone
+        is not an agreement.
+      - DEPOSIT_INFORMATION is echoed in FULL — the contracted terms AND the
+        figures they produce, exactly as the terminal /on_init stated them. The
+        buyer app calculates nothing; a differing value is 832042.
+      - PAYOUT_FREQUENCY is the branch key. CUMULATIVE means MATURITY_AMOUNT is
+        principal plus interest, NET_MATURITY_AMOUNT is present, and the
+        per-payout fields are absent. Anything else inverts all three, and
+        COMPOUNDING_FREQUENCY must be P0D.
+      - The periodic figures MUST reconcile — PAYOUT_COUNT x
+        INTEREST_PER_PAYOUT plus FINAL_STUB_INTEREST equals TOTAL_INTEREST.
+      - quote.id is the one the issuer minted on the TERMINAL /on_init. Do not
+        generate a new one, and do not send the indicative /on_select id.
+      - There is NO payments[].id on this call. The issuer mints it at
+        /on_confirm, together with order.id.
+      - PAYMENT_METHOD.MODE must be one of the PAYMENT_OPTION groups the
+        terminal /on_init advertised, and the amount must sit inside that
+        option's MIN_AMOUNT and MAX_AMOUNT. Choosing outside the set is 832029.
+      - LINKED_BANK_ACCOUNT.IDENTIFIER must be one of the accounts the terminal
+        /on_init offered. An identifier the issuer did not issue is 832042.
+      - Send inside the TERMINAL /on_init quote.ttl window. After it, the
+        answer is 832031 and the fix is to re-send the terminal /init round for
+        a fresh binding quote — never a /confirm retry.
+      - LINKED_BANK_ACCOUNT carries IDENTIFIER and ACCOUNT_ROLE only.
+      - INVESTOR_INFORMATION is echoed from what the ISSUER established, not from
+        what the buyer app once claimed. INVESTOR_CATEGORY and
+        DEPOSITOR_CATEGORY come from INVESTOR_STATUS on the terminal /on_init;
+        sending the /select claim instead is 832042 whenever the two differ,
+        which is exactly the case the check exists to catch.
+      - INVESTOR_DETAILS is echoed VERBATIM from /on_init, masked values and
+        all. Do not unmask, complete or correct it — a differing value is
+        832042. It is here so the confirmation screen the investor saw is part
+        of the signed payload.
+      - THIS CALL IS THE COMPLETE STATEMENT. Deposit terms, investor facts and
+        details, chosen account and chosen rail all travel together. /on_confirm
+        answers with only what is new — the order id, the payment instruction,
+        and the cancellation and refund terms.
+      - No payments[].url. The buyer app never supplies a payment link.
+
+    decisions:
+      terms-and-projection-merged:
+        change: >-
+          DEPOSIT_TERMS at /confirm became DEPOSIT_INFORMATION and absorbed the
+          projection — MATURITY_AMOUNT, TOTAL_INTEREST, the per-payout fields,
+          TDS_ESTIMATED, NET_MATURITY_AMOUNT and PROJECTION_BASIS.
+        why: >-
+          Elsewhere the split makes sense: the issuer states terms and derives
+          figures, and they change at different moments. At /confirm nothing is
+          being derived — the buyer app is restating a settled agreement, and
+          the investor is signing the rate AND the number it produces. Splitting
+          them across two groups on the same item asked an implementer to
+          assemble one screen from two places for no gain.
+        cost: >-
+          None remaining. The merge was carried through to /on_init and
+          /on_status in the same version, so every issuer-stated group in the
+          journey is now one DEPOSIT_INFORMATION on the item with the same
+          field set, and the /confirm echo is a field-by-field diff.
+      complete-statement:
+        change: >-
+          /confirm carries the full picture — DEPOSIT_INFORMATION, INVESTOR_INFORMATION,
+          INVESTOR_DETAILS, LINKED_BANK_ACCOUNT and PAYMENT_METHOD — and
+          /on_confirm was slimmed to the order id, the payment instruction and
+          the exit terms.
+        why: >-
+          The two calls had drifted into restating each other. Putting the whole
+          agreement in the buyer app's request makes the signed artefact
+          self-contained and gives the issuer one payload to diff, and lets the
+          response say only what the request could not already know.
+        cost: >-
+          The request is larger and repeats material from /on_init. That is
+          deliberate — a signature over a payload that references other calls by
+          id is worth less than one over a payload that states its own terms.
+      two-fa-schema-enforced:
+        change: >-
+          creds requires minItems 3 with a contains for PAN, IP_ADDRESS and one
+          of the two 2FA types.
+        why: >-
+          2FA is the entire point of /confirm. Documenting it as mandatory in
+          prose leaves a valid-looking payload that commits an investor to a
+          multi-year contract with no authentication. Making it a schema failure
+          costs nothing and closes that path.
+      both-terms-enforced:
+        change: >-
+          order.tags is capped at exactly 2 with an allOf of two contains, one
+          per terms code.
+        why: >-
+          The paired terms blocks are what distinguish /confirm from every other
+          buyer-to-seller call. A confirm carrying only BAP_TERMS looks
+          well-formed and is not an agreement.
+      full-deposit-terms:
+        change: DEPOSIT_INFORMATION is echoed complete, not as the two-field partial.
+        why: >-
+          At /select and /init the buyer app is asking; at /confirm it is
+          agreeing. Restating the full terms makes the agreement explicit and
+          gives the issuer something to diff against — which is how 832042 is
+          detected at the only point where it still matters.
+      investor-information-sourced:
+        change: >-
+          Every field in INVESTOR_INFORMATION gained an enum, and the group's
+          description was corrected — it claimed the fields were "unchanged since
+          /select", which v0.2.0 made false when it moved identity to /init.
+        why: >-
+          INVESTOR_CATEGORY was mandatory here and returned by no issuer call, so
+          a conformant buyer app could not construct a conformant /confirm. The
+          field is now stated in INVESTOR_STATUS at /on_init and /on_status and
+          echoed here, which is the pattern DEPOSITOR_CATEGORY already followed.
+          The missing enums were the same defect one level down: a mandatory
+          field with no value set is a field every implementer invents
+          differently, and the three reference examples proved it by inventing
+          the same undefined INDIVIDUAL.
+
+      quote-echo-not-requote:
+        change: A separate QuoteEcho schema with only id and price.
+        why: >-
+          The buyer app has no business sending breakup or ttl back; those are
+          the seller's. A trimmed schema stops a well-meaning implementation
+          echoing a stale ttl and creating ambiguity about which clock applies.
+
+    open-points:
+      otp-in-plaintext:
+        status: unresolved
+        question: >-
+          The OTP travels as a plaintext cred value. Transport is signed and
+          encrypted, but the value is readable to anything that logs the
+          payload — including a TSP sitting between buyer app and gateway.
+        recommendation: >-
+          Send a hash of the OTP salted with transaction_id, or a short-lived
+          verification token the issuer's own OTP service mints. Worth deciding
+          before the first production integration, since changing it later
+          breaks every implementation.
+      no-otp-expiry:
+        status: unresolved
+        question: >-
+          Nothing binds the OTP to a time window. An OTP generated twenty
+          minutes earlier is indistinguishable from one generated now.
+        recommendation: >-
+          The quote.ttl window bounds it loosely, but an explicit
+          OTP_GENERATED_AT would let the issuer enforce its own policy.
+      second-factor-unspecified:
+        status: unresolved
+        question: >-
+          The OTP is described as the SECOND factor, but nothing specifies the
+          first, and the protocol carries no evidence of it. Two buyer apps can
+          both be conformant while offering very different assurance.
+        recommendation: >-
+          Define a minimum first-factor standard at network policy level, and
+          consider an AUTH_METHOD tag so the issuer can see what it is trusting.
+
+    source:
+      derived-from:
+        - FD_ONDC_FIS15_API_Spec.md (section 8.1)
+        - FD_ONDC_FIS15_Schema.xlsx (API Fields, confirm rows — 46 fields)
+        - FD_ONDC_BRD_Final.docx v1.0, Flow > Order Review & Payment
+      chains-with:
+        - FIS15_on_init_API.yaml — echoes its binding quote id, its offered accounts and its terms
+        - FIS15_on_confirm_API.yaml — returns the order id and the payment URL
+      beckn-core: 1.3.0

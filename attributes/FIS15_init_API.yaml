@@ -1,0 +1,728 @@
+openapi: 3.0.0
+info:
+  title: ONDC FIS15 — Init API
+  description: >-
+    BAP → BPP investor identification and onboarding. /init is called
+    REPEATEDLY within one transaction: once to identify the investor against
+    the configuration already priced at /on_select, then once per form the
+    issuer returns. The seller drives the loop through xinput; the buyer app
+    just answers.
+
+    THE DEPOSIT IS ALREADY PRICED when /init is sent. Amount, tenure, payout
+    frequency and maturity instruction were fixed at /select and the indicative
+    quote came back on /on_select. /init changes none of them — it echoes the
+    configuration byte-identically and adds the one thing /select deliberately
+    withheld: who the investor is.
+
+    There are only TWO payload shapes. The opening round carries the full order
+    and no xinput. Every later round carries the SAME order, byte-identical,
+    plus an xinput block holding the previous form's submission_id. Nothing
+    else changes between rounds — that invariant is what error 832042 polices.
+
+    Form CONTENT never traverses the protocol. Address, email, parents' names,
+    marital status, occupation, income, nominee details and bank credentials
+    are all submitted to the issuer's own form system, which returns a
+    submission_id; only that receipt travels here.
+
+    Domain code ONDC:FIS15 and error range 832001-832042 are requested from
+    ONDC and not yet allocated.
+  version: 0.2.0
+
+servers:
+  - url: https://api.icicibank.com/ondc
+    description: BPP (seller app) endpoint
+
+paths:
+  /init:
+    post:
+      summary: Identify the investor, then answer the issuer's form chain
+      description: >-
+        Returns an ACK/NACK synchronously; the substantive reply arrives on the
+        BAP's /on_init. The opening round triggers the issuer's ETB/NTB lookup
+        against the investor's PAN. Each later round submits one form receipt
+        and receives either the next form or a terminal response — 
+        form_response.status SUCCESS with xinput.required false — which
+        re-affirms the quote as binding and is the signal that /confirm is now
+        legal.
+      operationId: init
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InitRequest'
+            examples:
+              R1_identify:
+                summary: 'Round 1 — identify the investor against the priced order'
+                description: >-
+                  Echoes the Rs 5,00,000 / 400 day configuration priced at
+                  /on_select, and adds the PAN, the consent creds and the
+                  contact. No xinput — this is the opening round.
+                value:
+                  $ref: '../examples/init/fis15-init-01-identify.json'
+
+              R2_form_round:
+                summary: 'Rounds 2..n — submit one form receipt'
+                description: >-
+                  Identical to round 1 except for the added xinput block. This
+                  same shape repeats for every form in the chain; only
+                  xinput.form.id and submission_id change.
+                value:
+                  $ref: '../examples/init/fis15-init-02-form-round.json'
+
+              R1_bulk_senior:
+                summary: 'Round 1 variant — bulk deposit, senior citizen'
+                description: >-
+                  The Rs 3.5 crore / 550 day quarterly-payout order priced at
+                  6.80% on /on_select. The SENIOR_CITIZEN category claimed at
+                  /select is verified here, from the date of birth in the KYC
+                  record.
+                value:
+                  $ref: '../examples/init/fis15-init-03-bulk-senior.json'
+      responses:
+        default:
+          description: ACK / NACK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ack'
+
+components:
+  schemas:
+
+    InitRequest:
+      type: object
+      additionalProperties: false
+      required: [context, message]
+      properties:
+        context:
+          allOf:
+            - $ref: '#/components/schemas/Context'
+            - type: object
+              required: [action, bpp_id, bpp_uri]
+              properties:
+                action:
+                  enum: [init]
+        message:
+          type: object
+          additionalProperties: false
+          required: [order]
+          properties:
+            order:
+              $ref: '#/components/schemas/Order'
+
+    Context:
+      type: object
+      additionalProperties: false
+      required:
+        - location
+        - domain
+        - action
+        - version
+        - bap_id
+        - bap_uri
+        - bpp_id
+        - bpp_uri
+        - transaction_id
+        - message_id
+        - timestamp
+        - ttl
+      properties:
+        location:
+          type: object
+          additionalProperties: false
+          required: [country, city]
+          properties:
+            country:
+              type: object
+              properties:
+                code: { type: string, enum: [IND] }
+            city:
+              type: object
+              properties:
+                code: { type: string, enum: ['*'] }
+        domain:  { type: string, enum: [ONDC:FIS15] }
+        action:  { type: string, enum: [init] }
+        version: { type: string, example: 0.2.0 }
+        bap_id:  { type: string }
+        bap_uri: { type: string, format: uri }
+        bpp_id:  { type: string, description: Mandatory from /select onward. }
+        bpp_uri: { type: string, format: uri }
+        transaction_id:
+          type: string
+          format: uuid
+          description: >-
+            INHERITED FROM /select, not minted here. The journey's
+            transaction_id is created at the first /select and threads the
+            pricing calls, every round of this chain, /confirm and every
+            unsolicited /on_status. An /init on a transaction_id the issuer has
+            not priced is 832042.
+        message_id: { type: string, format: uuid, description: Fresh per round. }
+        timestamp:  { type: string, format: date-time }
+        ttl:        { type: string, example: PT10M }
+
+    Order:
+      type: object
+      additionalProperties: false
+      required: [provider, items, fulfillments, quote, tags]
+      description: >-
+        Identical across every round of the chain except for xinput. Every
+        priced field is an ECHO of what /select sent and /on_select priced —
+        drift is 832042. See x-ondc-fis15.rounds.
+      properties:
+        provider:
+          type: object
+          additionalProperties: false
+          required: [id]
+          properties:
+            id: { type: string, example: icici_fd }
+        ref_order_ids:
+          type: array
+          items: { type: string }
+          description: >-
+            Parent FD order id. Present only on withdrawal and servicing
+            journeys; absent on a new booking.
+        items:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/Item'
+          description: >-
+            Exactly one item. FIS15 does not support multi-item deposit orders —
+            each deposit is its own contract with its own tenure and maturity.
+        fulfillments:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/Fulfillment'
+        quote:
+          $ref: '#/components/schemas/QuoteRef'
+        xinput:
+          $ref: '#/components/schemas/XInputSubmission'
+        tags:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/TagGroup'
+          description: Carries BAP_TERMS. Mandatory on every round.
+
+    Item:
+      type: object
+      additionalProperties: false
+      required: [id, fulfillment_ids, quantity, tags]
+      properties:
+        id:
+          type: string
+          description: Product id from the catalog. Byte-identical across all rounds.
+        fulfillment_ids:
+          type: array
+          minItems: 1
+          items: { type: string }
+        quantity:
+          type: object
+          additionalProperties: false
+          required: [selected]
+          properties:
+            selected:
+              type: object
+              additionalProperties: false
+              required: [measure]
+              properties:
+                measure:
+                  type: object
+                  additionalProperties: false
+                  required: [value, unit]
+                  properties:
+                    value:
+                      type: string
+                      description: >-
+                        Deposit amount. Must satisfy PRODUCT_INFORMATION
+                        AMOUNT_MIN / AMOUNT_MAX / AMOUNT_MULTIPLES and resolve
+                        to exactly one RATE_CARD_ENTRY, or 832012 / 832013.
+                    unit: { type: string, enum: [INR] }
+        tags:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/TagGroup'
+          description: >-
+            Exactly one group — DEPOSIT_CONFIGURATION, re-affirming the two
+            choices the deposit was priced on. Item level, as at /select.
+
+    Fulfillment:
+      type: object
+      additionalProperties: false
+      required: [id, type, customer, agent, stops]
+      properties:
+        id:   { type: string, description: Fulfillment id from the catalog. }
+        type: { type: string, enum: [DEPOSIT, KYC] }
+        customer:
+          type: object
+          additionalProperties: false
+          required: [person, contact]
+          properties:
+            person:
+              type: object
+              additionalProperties: false
+              required: [id, creds]
+              properties:
+                id:
+                  type: string
+                  pattern: '^pan:[a-zA-Z]{5}[0-9]{4}[a-zA-Z]$'
+                  example: pan:abcpk1234f
+                  description: >-
+                    The investor's PAN, namespaced. This is what the issuer
+                    resolves against its core banking system to answer ETB or
+                    NTB — the single most consequential field in the call.
+                creds:
+                  type: array
+                  minItems: 1
+                  items:
+                    $ref: '#/components/schemas/Credential'
+                  description: >-
+                    The PAN, and for a non-individual the entity credential that
+                    goes with it. NO IP_ADDRESS — see the consent-evidence open
+                    point below.
+            contact:
+              type: object
+              additionalProperties: false
+              required: [phone]
+              properties:
+                phone:
+                  type: string
+                  description: >-
+                    Mobile the 2FA OTP will later be sent to at /confirm. Must
+                    match a contact the issuer holds, or 832021.
+                email: { type: string }
+        agent:
+          type: object
+          additionalProperties: false
+          required: [organization]
+          properties:
+            organization:
+              type: object
+              additionalProperties: false
+              required: [creds]
+              properties:
+                creds:
+                  type: array
+                  minItems: 1
+                  items:
+                    $ref: '#/components/schemas/Credential'
+                  description: >-
+                    The PAN, and for a non-individual the entity credential that
+                    goes with it. NO IP_ADDRESS — see the consent-evidence open
+                    point below.
+        stops:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            type: object
+            additionalProperties: false
+            required: [time]
+            properties:
+              time:
+                type: object
+                additionalProperties: false
+                required: [label, duration]
+                properties:
+                  label: { type: string, enum: [TENURE] }
+                  duration:
+                    type: string
+                    example: P400D
+                    description: >-
+                      Tenure as an ISO 8601 duration. Days are the safe unit —
+                      banks quote odd tenures such as 400 or 444 days.
+        tags:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/TagGroup'
+          description: >-
+            INVESTOR_INFORMATION only, and OPTIONAL — for a resident individual
+            there is nothing to send, because the PAN answers everything the
+            issuer needs. Present only for a joint holding or an NRI.
+
+    Credential:
+      type: object
+      additionalProperties: false
+      required: [id, type]
+      properties:
+        id: { type: string }
+        type:
+          type: string
+          enum:
+            - PAN
+            - FORM_60
+            - IP_ADDRESS
+            - INDIA_TAX_RESIDENCY_STATUS
+            - DEPOSIT_ACCOUNT
+            - PASSPORT
+            - HUF_PAN
+            - GUARDIAN_PAN
+            - CIN
+            - ONDC_SUBSCRIBER_ID
+            - DISTRIBUTOR_CODE
+
+    QuoteRef:
+      type: object
+      additionalProperties: false
+      required: [id]
+      description: >-
+        A REFERENCE, not a quote. Carries the id of the indicative quote
+        returned on /on_select, which is what binds this onboarding chain to a
+        priced configuration. The issuer re-affirms it as binding, with a fresh
+        ttl, on the terminal /on_init.
+      properties:
+        id: { type: string }
+
+    XInputSubmission:
+      type: object
+      additionalProperties: false
+      required: [form, form_response]
+      description: >-
+        Present on form rounds only, absent on the opening round. Carries the
+        receipt and nothing else — never the form's contents.
+      properties:
+        form:
+          type: object
+          additionalProperties: false
+          required: [id]
+          properties:
+            id:
+              type: string
+              description: Echoes xinput.form.id from the on_init that issued the form.
+        form_response:
+          type: object
+          additionalProperties: false
+          required: [submission_id]
+          properties:
+            submission_id:
+              type: string
+              description: >-
+                Receipt issued by the issuer's form system. For a redirect form
+                it arrives twice — on the browser callback and on an unsolicited
+                on_status. Use the on_status value.
+
+    TagGroup:
+      type: object
+      additionalProperties: false
+      required: [descriptor, list]
+      properties:
+        display:    { type: boolean, default: false }
+        descriptor: { $ref: '#/components/schemas/Descriptor' }
+        list:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Tag'
+
+    Tag:
+      type: object
+      additionalProperties: false
+      required: [descriptor, value]
+      properties:
+        descriptor: { $ref: '#/components/schemas/Descriptor' }
+        value:      { type: string }
+        display:    { type: boolean }
+
+    Descriptor:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string }
+        code: { type: string }
+
+    Ack:
+      type: object
+      properties:
+        message:
+          type: object
+          properties:
+            ack:
+              type: object
+              properties:
+                status: { type: string, enum: [ACK, NACK] }
+        error:
+          type: object
+          properties:
+            code:    { type: string }
+            message: { type: string }
+
+  x-ondc-fis15:
+
+    tag-groups:
+
+      DEPOSIT_CONFIGURATION:
+        level: item
+        required: mandatory
+        cardinality: once
+        description: >-
+          The same two choices sent at /select, re-affirmed. Not a place to
+          change them — the deposit was priced on these and quote.id binds this
+          chain to that price. Drift is 832042.
+
+          CONFIGURATION, NOT TERMS. This group is the buyer app restating what
+          the investor chose. DEPOSIT_INFORMATION is the issuer's statement of the
+          contract and travels the other way, from /on_init onward. The two
+          names are not interchangeable and the field sets are not the same.
+
+          The depositor category is NOT sent here. It was a claim at /select;
+          from this call on it is the issuer's to determine.
+        list:
+          PAYOUT_FREQUENCY:
+            required: mandatory
+            enum: [CUMULATIVE, MONTHLY, QUARTERLY, HALF_YEARLY, ANNUAL]
+          MATURITY_INSTRUCTION:
+            required: mandatory
+            enum: [CREDIT_TO_BANK, RENEW_PRINCIPAL, RENEW_PRINCIPAL_AND_INTEREST]
+
+      INVESTOR_INFORMATION:
+        level: fulfillment
+        required: conditional
+        description: >-
+          SHRUNK IN v0.2.0 to the choices no lookup can supply. The PAN carries
+          the holder type in its fourth character, and a core-banking lookup on
+          it yields the date of birth for an existing customer — so
+          INVESTOR_CATEGORY and DEPOSITOR_CATEGORY are the issuer's to
+          determine, not the buyer app's to assert.
+
+          What remains is structural: how a joint account operates, and which
+          NRI account funds it. For a resident individual deposit the whole
+          group is absent, and the first /init carries nothing but the PAN and
+          DEPOSIT_CONFIGURATION.
+        list:
+          RESIDENCY_STATUS:
+            required: conditional
+            enum: [RESIDENT, NON_RESIDENT]
+            description: >-
+              Mandatory when the investor is non-resident. Absent means
+              RESIDENT, which the KYC record confirms.
+          MODE_OF_OPERATION:
+            required: conditional
+            enum: [EITHER_OR_SURVIVOR, JOINTLY, FORMER_OR_SURVIVOR]
+            description: Mandatory for a joint holding.
+          HOLDER_COUNT:
+            required: conditional
+            type: integer
+            description: Mandatory for a joint holding.
+          NRI_ACCOUNT_TYPE:
+            required: conditional
+            enum: [NRE, NRO]
+            description: >-
+              Mandatory when RESIDENCY_STATUS is NON_RESIDENT. Determines the
+              permitted funding account and the TDS treatment.
+
+      BAP_TERMS:
+        level: order
+        required: mandatory
+        list:
+          STATIC_TERMS:     { required: mandatory, type: uri }
+          OFFLINE_CONTRACT: { required: mandatory, enum: ['true', 'false'] }
+
+    rounds:
+      description: >-
+        The chain is issuer-driven. head.index on the on_init declares its
+        length up front so the BAP can render a progress indicator; the order
+        below is the one the reference buyer-app journey uses. The deposit was
+        priced before round 1 — nothing in this chain changes the money.
+      chain:
+        - round: 1
+          sends: Full order, no xinput
+          triggers: ETB/NTB lookup on the PAN
+          receives: >-
+            on_init with INVESTOR_STATUS, the quote reference carried forward
+            from /on_select, and — if NTB — the first form.
+        - round: 2
+          form: KYC
+          mime: application/html
+          note: >-
+            Aadhaar e-KYC on the issuer's own interface. Browser redirect, so
+            the outcome arrives twice; trust the unsolicited on_status.
+        - round: 3
+          form: INVESTOR_DETAILS
+          mime: text/html
+          collects: >-
+            Current address, email, mother's name, father's name, marital
+            status, occupation, annual income. Pre-filled by the issuer from
+            the Aadhaar or PAN record — the BAP never receives those values
+            over the protocol.
+        - round: 4
+          form: FATCA_CRS
+          mime: text/html
+          collects: Tax residency self-certification. Mandatory for every entity type.
+        - round: 5
+          form: NOMINEE
+          mime: text/html
+          collects: >-
+            Nominee name, relation, date of birth, address — OR an explicit
+            no-nomination declaration. Skipping is a normal SUCCESS submission
+            carrying the declaration, not a distinct protocol state.
+        - round: 6
+          form: BANK_LINKAGE
+          mime: text/html
+          collects: >-
+            The accounts the investor may fund from and be paid into, verified
+            by UPI penny drop or by account number plus IFSC. Which of them is
+            USED is chosen later, at /confirm.
+          receives: >-
+            Terminal on_init — form_response.status SUCCESS, xinput.required
+            false, the binding quote with a fresh ttl, cancellation and refund
+            terms, and the PAYMENT_OPTION groups. /confirm is legal from here.
+
+    rules:
+      - The order is priced BEFORE /init. provider.id, items[].id, the amount,
+        the tenure, the fulfillment id and quote.id must match what /select
+        sent and /on_select priced. Any drift is 832042.
+      - Within one transaction_id those same fields, plus the PAN, must be
+        BYTE-IDENTICAL across every round of the chain.
+      - The opening round has no xinput. Every later round has one. That is the
+        only structural difference between them.
+      - Form content does not traverse the protocol in this direction — the
+        buyer app sends only submission_id. The issuer returns DISPLAY-SAFE
+        SUMMARIES of what it collected, in INVESTOR_DETAILS on /on_init, so the
+        buyer app can render a confirmation screen. Masked values only; the raw
+        form content stays in the issuer's own system.
+      - THE BUYER APP DOES NOT SEND THE CATEGORY HERE. The PAN's fourth
+        character gives the holder type, and a core-banking lookup on the PAN
+        gives the date of birth for an EXISTING customer — so the issuer
+        determines both INVESTOR_CATEGORY and DEPOSITOR_CATEGORY and returns
+        them on /on_init.
+      - The PAN alone cannot date a NEW customer. A PAN carries no date of
+        birth, so for an NTB investor the depositor category is not known until
+        Aadhaar e-KYC completes in round 2. Until then the /on_select claim is
+        all there is, and /on_init must say so — see CATEGORY_BASIS in
+        INVESTOR_STATUS.
+      - A category the KYC contradicts is 832014, and the fix is a fresh
+        /select at the correct category — not a retry of this chain.
+      - The /on_select quote is INDICATIVE. The terminal /on_init re-affirms it
+        as binding with a fresh ttl, and that is the ttl /confirm must honour.
+      - No account is chosen and no payment rail is proposed here. Both are
+        decided at /confirm, against the PAYMENT_OPTION groups the terminal
+        /on_init advertises.
+      - No consent artefact travels on this call. The buyer app must still show
+        PRODUCT_TNC and take explicit agreement before sending /init, and retain
+        the time, mode and version of that acceptance in its own records — the
+        issuer assumes it happened and the protocol carries no proof.
+
+    decisions:
+      chain-moved-from-select:
+        change: >-
+          The onboarding form chain, the ETB/NTB lookup and the investor's PAN
+          all moved here from /select in v0.2.0.
+        why: >-
+          /select was doing two unrelated jobs — pricing a product and
+          onboarding a person — and the investor could not see what the deposit
+          would actually pay until they had surrendered their PAN. Splitting
+          them lets a buyer app show a full maturity projection to an anonymous
+          browser, and confines identity to the call that needs it.
+      quote-reference-not-quote:
+        change: >-
+          /init carries quote.id only, never a price.
+        why: >-
+          The buyer app has no business restating a number the issuer
+          calculated. Carrying the id alone makes the binding between the
+          onboarding chain and the priced configuration explicit, and gives
+          832042 something unambiguous to police.
+      deposit-configuration-reaffirmed:
+        change: >-
+          DEPOSIT_CONFIGURATION is sent at /init, at item level, with the same
+          two fields /select carried.
+        why: >-
+          quote.id binds the chain to a price, but a bare id is opaque. Echoing
+          the two choices the price was derived from gives 832042 something
+          legible to police, and gives an issuer reading one payload enough to
+          see what is being onboarded without joining back to /select.
+      category-derived-not-declared:
+        change: >-
+          INVESTOR_CATEGORY and DEPOSITOR_CATEGORY were removed from
+          INVESTOR_INFORMATION at /init. The issuer derives both.
+        why: >-
+          The buyer app was asserting facts it cannot establish. Holder type is
+          in the PAN itself and the date of birth is in the issuer's own
+          records; a BAP-declared category was a claim dressed as a fact, and
+          the mismatch surfaced late. What the buyer app still sends is what
+          only the investor can choose — the joint-holding mode and the NRI
+          account type.
+      consent-evidence-dropped:
+        change: >-
+          IP_ADDRESS is no longer sent on customer.person.creds at /init. The
+          PAN travels alone.
+        why: >-
+          An IP address is thin evidence for a multi-year contract and weak
+          personal data to put on a network for the value it adds — it proves
+          a request came from somewhere, not that a person read anything. The
+          real consent record — which terms, which version, accepted when and
+          how — lives in the buyer app's own systems either way, and the
+          STATIC_TERMS exchange in BAP_TERMS is what makes the engagement
+          contractually binding.
+        cost: >-
+          Nothing in the transaction log now shows the investor agreed before
+          their PAN was looked up. That is a deliberate gap, recorded as the
+          consent-evidence open point rather than papered over. IP_ADDRESS
+          remains mandatory at /confirm, where the commitment actually happens.
+      pan-pattern:
+        change: customer.person.id carries a PAN format pattern.
+        why: >-
+          The ETB/NTB lookup fails opaquely on a malformed PAN. Catching it at
+          schema level turns 832007 into a client-side validation error.
+
+    open-points:
+      consent-evidence:
+        status: unresolved
+        question: >-
+          With IP_ADDRESS dropped, /init carries no consent artefact at all. The
+          investor's agreement to the product terms and to the PAN lookup is
+          asserted by the buyer app and visible only in the buyer app's own
+          records. In a dispute the issuer has nothing to point at.
+        recommendation: >-
+          Add a CONSENT_INFO tag group at fulfillment level carrying TNC_URL,
+          TNC_VERSION, ACCEPTED_AT and ACCEPTANCE_MODE — real evidence rather
+          than an IP address, and reconstructable from the transaction log
+          rather than dependent on a BAP's retention policy. Decide before the
+          first production integration; adding it later changes every /init.
+      category-mismatch-cost:
+        status: unresolved
+        question: >-
+          A SENIOR_CITIZEN claim at /select that KYC contradicts invalidates
+          the quote, and the investor must go back and re-price. That is
+          correct but harsh, and it happens after they have completed KYC.
+        recommendation: >-
+          Let the terminal /on_init return a re-priced binding quote at the
+          verified category with a mandatory CATEGORY_ADVICE tag, on the same
+          pattern as PAYMENT_ADVICE, rather than failing the transaction.
+      chain-length-unbounded:
+        status: unresolved
+        question: >-
+          head.index.max is declared by the issuer and nothing caps it. A chain
+          long enough to outrun the /on_select quote's own validity is
+          expressible.
+        recommendation: >-
+          Since the binding quote is now minted at the TERMINAL /on_init, the
+          exposure is the issuer's own and no network cap is needed. Worth
+          stating explicitly so implementers do not add one.
+      abandoned-chains:
+        status: unresolved
+        question: >-
+          An investor who abandons the chain after KYC leaves the issuer
+          holding verified KYC against no order. Nothing expires it.
+        recommendation: >-
+          Define a chain TTL on the terminal-round obligation, or an explicit
+          /update path that abandons a transaction, so the issuer can close its
+          own record.
+
+    source:
+      derived-from:
+        - FD_ONDC_FIS15_API_Spec.md (sections 6, 7, 8)
+        - FD_ONDC_BRD_Final.docx v1.0, Flow > Investor onboarding
+        - FIS15_select_API.yaml v0.1.0 (this call is its direct successor)
+      reference-implementation:
+        repo: ONDC-FIS-Specifications-release-FIS14-2.1.0
+        files:
+          - api/components/schemas/xinput.yaml
+          - api/components/docs/stage-onboarding.md
+      beckn-core: 1.3.0

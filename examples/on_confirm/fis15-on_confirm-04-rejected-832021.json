@@ -1,0 +1,27 @@
+{
+    "context": {
+        "location": {
+            "country": {
+                "code": "IND"
+            },
+            "city": {
+                "code": "*"
+            }
+        },
+        "domain": "ONDC:FIS15",
+        "action": "on_confirm",
+        "version": "0.2.0",
+        "bap_id": "api.buyerapp.com",
+        "bap_uri": "https://api.buyerapp.com/ondc",
+        "bpp_id": "api.icicibank.com",
+        "bpp_uri": "https://api.icicibank.com/ondc",
+        "transaction_id": "e9895269-e7a9-4003-9ebc-534413a6017b",
+        "message_id": "b7c05e13-8d42-4a96-9f70-2e4b6c8a1d35",
+        "timestamp": "2026-09-02T09:41:03.000Z",
+        "ttl": "PT10M"
+    },
+    "error": {
+        "code": "832021",
+        "message": "The 2FA one-time password does not match the contact on record for PAN ABCPK1234F. Re-issue the OTP to the registered email address and retry /confirm within the quote validity window."
+    }
+}

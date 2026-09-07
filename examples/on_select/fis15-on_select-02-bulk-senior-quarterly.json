@@ -1,0 +1,192 @@
+{
+  "context": {
+    "location": {
+      "country": {
+        "code": "IND"
+      },
+      "city": {
+        "code": "*"
+      }
+    },
+    "domain": "ONDC:FIS15",
+    "action": "on_select",
+    "version": "0.2.0",
+    "bap_id": "api.buyerapp.com",
+    "bap_uri": "https://api.buyerapp.com/ondc",
+    "bpp_id": "api.icicibank.com",
+    "bpp_uri": "https://api.icicibank.com/ondc",
+    "transaction_id": "7c1f0a34-2b58-4d91-8e6a-1f0c7d2b4a95",
+    "message_id": "9a2c4e61-7d30-42b8-b5c1-08e3f97a2d64",
+    "timestamp": "2026-09-02T10:02:03.100Z",
+    "ttl": "PT10M"
+  },
+  "message": {
+    "order": {
+      "provider": {
+        "id": "icici_fd",
+        "descriptor": {
+          "name": "ICICI Bank"
+        }
+      },
+      "items": [
+        {
+          "id": "icici_fd_regular",
+          "descriptor": {
+            "name": "ICICI Bank Fixed Deposit",
+            "code": "DEPOSIT_PRODUCT"
+          },
+          "fulfillment_ids": [
+            "ff_dep_01"
+          ],
+          "quantity": {
+            "selected": {
+              "measure": {
+                "value": "35000000",
+                "unit": "INR"
+              }
+            }
+          },
+          "tags": [
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Maturity Projection",
+                "code": "MATURITY_PROJECTION"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "PRINCIPAL"
+                  },
+                  "value": "35000000"
+                },
+                {
+                  "descriptor": {
+                    "code": "PAYOUT_BASIS"
+                  },
+                  "value": "PERIODIC"
+                },
+                {
+                  "descriptor": {
+                    "code": "INTEREST_RATE"
+                  },
+                  "value": "6.80"
+                },
+                {
+                  "descriptor": {
+                    "code": "ANNUALISED_YIELD"
+                  },
+                  "value": "6.80"
+                },
+                {
+                  "descriptor": {
+                    "code": "COMPOUNDING_FREQUENCY"
+                  },
+                  "value": "P0D"
+                },
+                {
+                  "descriptor": {
+                    "code": "MATURITY_AMOUNT"
+                  },
+                  "value": "35000000"
+                },
+                {
+                  "descriptor": {
+                    "code": "TOTAL_INTEREST"
+                  },
+                  "value": "3585972.61"
+                },
+                {
+                  "descriptor": {
+                    "code": "INTEREST_PER_PAYOUT"
+                  },
+                  "value": "593315.07"
+                },
+                {
+                  "descriptor": {
+                    "code": "PAYOUT_COUNT"
+                  },
+                  "value": "6"
+                },
+                {
+                  "descriptor": {
+                    "code": "FINAL_STUB_INTEREST"
+                  },
+                  "value": "26082.19"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "fulfillments": [
+        {
+          "id": "ff_dep_01",
+          "type": "DEPOSIT",
+          "stops": [
+            {
+              "time": {
+                "label": "TENURE",
+                "duration": "P550D"
+              }
+            },
+            {
+              "time": {
+                "label": "INTEREST_PAYOUT",
+                "schedule": {
+                  "frequency": "R6/P3M"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "quote": {
+        "id": "quote_fd_35cr_550d_680",
+        "price": {
+          "currency": "INR",
+          "value": "35000000"
+        },
+        "breakup": [
+          {
+            "item": {
+              "id": "icici_fd_regular",
+              "fulfillment_ids": [
+                "ff_dep_01"
+              ]
+            },
+            "title": "PRINCIPAL",
+            "price": {
+              "currency": "INR",
+              "value": "35000000"
+            }
+          }
+        ],
+        "ttl": "PT15M"
+      },
+      "tags": [
+        {
+          "display": false,
+          "descriptor": {
+            "name": "Seller App Terms",
+            "code": "BPP_TERMS"
+          },
+          "list": [
+            {
+              "descriptor": {
+                "code": "STATIC_TERMS"
+              },
+              "value": "https://icicibank.com/legal/ondc:fis15/static_terms?v=0.2"
+            },
+            {
+              "descriptor": {
+                "code": "OFFLINE_CONTRACT"
+              },
+              "value": "false"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

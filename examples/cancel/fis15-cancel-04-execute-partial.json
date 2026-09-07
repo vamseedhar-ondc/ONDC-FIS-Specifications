@@ -1,0 +1,119 @@
+{
+  "context": {
+    "location": {
+      "country": {
+        "code": "IND"
+      },
+      "city": {
+        "code": "*"
+      }
+    },
+    "domain": "ONDC:FIS15",
+    "action": "cancel",
+    "version": "0.2.0",
+    "bap_id": "api.buyerapp.com",
+    "bap_uri": "https://api.buyerapp.com/ondc",
+    "bpp_id": "api.icicibank.com",
+    "bpp_uri": "https://api.icicibank.com/ondc",
+    "transaction_id": "7c1f0a34-2b58-4d91-8e6a-1f0c7d2b4a95",
+    "message_id": "e51c8a03-7f26-4d94-a1b8-60937fc2e485",
+    "timestamp": "2027-06-03T07:43:52.000Z",
+    "ttl": "PT10M"
+  },
+  "message": {
+    "order_id": "FD-ICICI-20260902-004523",
+    "cancellation_type": "EXECUTE",
+    "cancellation_scope": "DEPOSIT_PARTIAL",
+    "cancellation_reason_id": "FUNDS_NEEDED_EARLY",
+    "order": {
+      "provider": {
+        "id": "icici_fd"
+      },
+      "fulfillments": [
+        {
+          "id": "ff_dep_01",
+          "type": "DEPOSIT",
+          "customer": {
+            "person": {
+              "id": "pan:rkspm4417c",
+              "creds": [
+                {
+                  "id": "RKSPM4417C",
+                  "type": "PAN"
+                },
+                {
+                  "id": "103.21.58.7",
+                  "type": "IP_ADDRESS"
+                },
+                {
+                  "id": "884213",
+                  "type": "2FA_PHONE_OTP"
+                }
+              ]
+            },
+            "contact": {
+              "phone": "9812340077"
+            }
+          },
+          "agent": {
+            "organization": {
+              "creds": [
+                {
+                  "id": "api.buyerapp.com",
+                  "type": "ONDC_SUBSCRIBER_ID"
+                },
+                {
+                  "id": "DIST-99213",
+                  "type": "DISTRIBUTOR_CODE"
+                }
+              ]
+            }
+          },
+          "tags": [
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Cancellation Request",
+                "code": "CANCELLATION_REQUEST"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "WITHDRAWAL_AMOUNT"
+                  },
+                  "value": "5000000"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "quote": {
+        "id": "cxl_004523_20270603_5c92"
+      },
+      "tags": [
+        {
+          "display": false,
+          "descriptor": {
+            "name": "BAP Terms of Engagement",
+            "code": "BAP_TERMS"
+          },
+          "list": [
+            {
+              "descriptor": {
+                "code": "STATIC_TERMS"
+              },
+              "value": "https://buyerapp.com/legal/ondc:fis15/static_terms?v=0.1"
+            },
+            {
+              "descriptor": {
+                "code": "OFFLINE_CONTRACT"
+              },
+              "value": "true"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

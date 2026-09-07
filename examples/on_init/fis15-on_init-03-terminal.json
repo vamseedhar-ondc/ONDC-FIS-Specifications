@@ -1,0 +1,792 @@
+{
+  "context": {
+    "location": {
+      "country": {
+        "code": "IND"
+      },
+      "city": {
+        "code": "*"
+      }
+    },
+    "domain": "ONDC:FIS15",
+    "action": "on_init",
+    "version": "0.2.0",
+    "bap_id": "api.buyerapp.com",
+    "bap_uri": "https://api.buyerapp.com/ondc",
+    "bpp_id": "api.icicibank.com",
+    "bpp_uri": "https://api.icicibank.com/ondc",
+    "transaction_id": "e9895269-e7a9-4003-9ebc-534413a6017b",
+    "message_id": "b4e77a12-8c39-4d0f-a1e6-55d2c9b03f47",
+    "timestamp": "2026-09-02T09:34:12.000Z",
+    "ttl": "PT10M"
+  },
+  "message": {
+    "order": {
+      "status": "CREATED",
+      "provider": {
+        "id": "icici_fd",
+        "descriptor": {
+          "name": "ICICI Bank"
+        }
+      },
+      "items": [
+        {
+          "id": "icici_fd_regular",
+          "descriptor": {
+            "name": "ICICI Bank Fixed Deposit",
+            "code": "DEPOSIT_PRODUCT"
+          },
+          "fulfillment_ids": [
+            "ff_dep_01"
+          ],
+          "quantity": {
+            "selected": {
+              "measure": {
+                "value": "500000",
+                "unit": "INR"
+              }
+            }
+          },
+          "tags": [
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Deposit Information",
+                "code": "DEPOSIT_INFORMATION"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "PRINCIPAL"
+                  },
+                  "value": "500000"
+                },
+                {
+                  "descriptor": {
+                    "code": "TENURE_DAYS"
+                  },
+                  "value": "400"
+                },
+                {
+                  "descriptor": {
+                    "code": "INTEREST_RATE"
+                  },
+                  "value": "6.25"
+                },
+                {
+                  "descriptor": {
+                    "code": "ANNUALISED_YIELD"
+                  },
+                  "value": "6.40"
+                },
+                {
+                  "descriptor": {
+                    "code": "PAYOUT_FREQUENCY"
+                  },
+                  "value": "CUMULATIVE"
+                },
+                {
+                  "descriptor": {
+                    "code": "COMPOUNDING_FREQUENCY"
+                  },
+                  "value": "P3M"
+                },
+                {
+                  "descriptor": {
+                    "code": "MATURITY_INSTRUCTION"
+                  },
+                  "value": "CREDIT_TO_BANK"
+                },
+                {
+                  "descriptor": {
+                    "code": "MATURITY_AMOUNT"
+                  },
+                  "value": "535163.15"
+                },
+                {
+                  "descriptor": {
+                    "code": "TOTAL_INTEREST"
+                  },
+                  "value": "35163.15"
+                },
+                {
+                  "descriptor": {
+                    "code": "TDS_ESTIMATED"
+                  },
+                  "value": "0.00"
+                },
+                {
+                  "descriptor": {
+                    "code": "NET_MATURITY_AMOUNT"
+                  },
+                  "value": "535163.15"
+                },
+                {
+                  "descriptor": {
+                    "code": "PROJECTION_BASIS"
+                  },
+                  "value": "PAN on record; no Form 15G/15H; no premature withdrawal; annual interest accrual of 31990.08 is below the s.194A threshold of Rs 50,000, so no TDS is deducted; value date equal to the credit date"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "fulfillments": [
+        {
+          "id": "ff_dep_01",
+          "type": "DEPOSIT",
+          "customer": {
+            "person": {
+              "id": "pan:abcpk1234f"
+            }
+          },
+          "stops": [
+            {
+              "time": {
+                "label": "TENURE",
+                "duration": "P400D"
+              }
+            }
+          ],
+          "tags": [
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Investor Status",
+                "code": "INVESTOR_STATUS"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "ETB_NTB_STATUS"
+                  },
+                  "value": "NTB_CONFIRMED"
+                },
+                {
+                  "descriptor": {
+                    "code": "ETB_CHECK_AS_ON"
+                  },
+                  "value": "2026-09-02T09:14:02.000Z"
+                },
+                {
+                  "descriptor": {
+                    "code": "INVESTOR_CATEGORY"
+                  },
+                  "value": "INDIVIDUAL"
+                },
+                {
+                  "descriptor": {
+                    "code": "DEPOSITOR_CATEGORY"
+                  },
+                  "value": "GENERAL"
+                },
+                {
+                  "descriptor": {
+                    "code": "CATEGORY_BASIS"
+                  },
+                  "value": "VERIFIED_KYC"
+                }
+              ]
+            },
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Investor Details",
+                "code": "INVESTOR_DETAILS"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "NAME_AS_PER_PAN"
+                  },
+                  "value": "RAJESH KUMAR SHARMA"
+                },
+                {
+                  "descriptor": {
+                    "code": "DOB_YEAR"
+                  },
+                  "value": "1979"
+                },
+                {
+                  "descriptor": {
+                    "code": "ADDRESS_CITY"
+                  },
+                  "value": "Pune"
+                },
+                {
+                  "descriptor": {
+                    "code": "ADDRESS_STATE"
+                  },
+                  "value": "Maharashtra"
+                },
+                {
+                  "descriptor": {
+                    "code": "ADDRESS_PINCODE"
+                  },
+                  "value": "411004"
+                },
+                {
+                  "descriptor": {
+                    "code": "EMAIL_MASKED"
+                  },
+                  "value": "r****a@gmail.com"
+                },
+                {
+                  "descriptor": {
+                    "code": "MOBILE_MASKED"
+                  },
+                  "value": "******3210"
+                },
+                {
+                  "descriptor": {
+                    "code": "OCCUPATION"
+                  },
+                  "value": "SALARIED"
+                },
+                {
+                  "descriptor": {
+                    "code": "INCOME_BAND"
+                  },
+                  "value": "10L-25L"
+                },
+                {
+                  "descriptor": {
+                    "code": "TAX_RESIDENCY"
+                  },
+                  "value": "RESIDENT_INDIA"
+                }
+              ]
+            },
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Nominee Information",
+                "code": "NOMINEE_INFORMATION"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "NOMINATION_OPTED"
+                  },
+                  "value": "true"
+                },
+                {
+                  "descriptor": {
+                    "code": "NOMINEE_COUNT"
+                  },
+                  "value": "1"
+                },
+                {
+                  "descriptor": {
+                    "code": "NOMINEE_NAME_MASKED"
+                  },
+                  "value": "R**** K*******"
+                },
+                {
+                  "descriptor": {
+                    "code": "NOMINEE_RELATIONSHIP"
+                  },
+                  "value": "SPOUSE"
+                },
+                {
+                  "descriptor": {
+                    "code": "ALLOCATION_PERCENTAGE"
+                  },
+                  "value": "100"
+                }
+              ]
+            },
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Linked Bank Account",
+                "code": "LINKED_BANK_ACCOUNT"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "IDENTIFIER"
+                  },
+                  "value": "ba_7f21c9ae"
+                },
+                {
+                  "descriptor": {
+                    "code": "MASKED_ACCOUNT_NUMBER"
+                  },
+                  "value": "XXXX XXXX 9878"
+                },
+                {
+                  "descriptor": {
+                    "code": "ACCOUNT_HOLDER_NAME"
+                  },
+                  "value": "Ananya R Krishnan"
+                },
+                {
+                  "descriptor": {
+                    "code": "ACCOUNT_TYPE"
+                  },
+                  "value": "SAVINGS"
+                },
+                {
+                  "descriptor": {
+                    "code": "BANK_NAME"
+                  },
+                  "value": "ICICI Bank Ltd"
+                },
+                {
+                  "descriptor": {
+                    "code": "IFSC"
+                  },
+                  "value": "ICIC0000047"
+                },
+                {
+                  "descriptor": {
+                    "code": "VERIFICATION_METHOD"
+                  },
+                  "value": "UPI_PENNY_DROP"
+                },
+                {
+                  "descriptor": {
+                    "code": "VERIFICATION_STATUS"
+                  },
+                  "value": "SUCCESSFUL"
+                },
+                {
+                  "descriptor": {
+                    "code": "ACCOUNT_ROLE"
+                  },
+                  "value": "BOTH"
+                }
+              ]
+            },
+            {
+              "display": true,
+              "descriptor": {
+                "name": "VKYC Terms",
+                "code": "VKYC_TERMS"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "VKYC_REQUIRED"
+                  },
+                  "value": "true"
+                },
+                {
+                  "descriptor": {
+                    "code": "VKYC_SEQUENCING"
+                  },
+                  "value": "POST_PAYMENT"
+                },
+                {
+                  "descriptor": {
+                    "code": "VKYC_SLA"
+                  },
+                  "value": "P7D"
+                }
+              ]
+            },
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Onboarding Status",
+                "code": "ONBOARDING_STATUS"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "STAGE"
+                  },
+                  "value": "ETB_CHECK"
+                },
+                {
+                  "descriptor": {
+                    "code": "MODE"
+                  },
+                  "value": "PAN_CBS_LOOKUP"
+                },
+                {
+                  "descriptor": {
+                    "code": "STATUS"
+                  },
+                  "value": "SUCCESSFUL"
+                },
+                {
+                  "descriptor": {
+                    "code": "UPDATED_AT"
+                  },
+                  "value": "2026-09-02T09:14:02.000Z"
+                }
+              ]
+            },
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Onboarding Status",
+                "code": "ONBOARDING_STATUS"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "STAGE"
+                  },
+                  "value": "KYC"
+                },
+                {
+                  "descriptor": {
+                    "code": "MODE"
+                  },
+                  "value": "AADHAAR_EKYC"
+                },
+                {
+                  "descriptor": {
+                    "code": "STATUS"
+                  },
+                  "value": "SUCCESSFUL"
+                },
+                {
+                  "descriptor": {
+                    "code": "UPDATED_AT"
+                  },
+                  "value": "2026-09-02T09:20:41.000Z"
+                }
+              ]
+            },
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Onboarding Status",
+                "code": "ONBOARDING_STATUS"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "STAGE"
+                  },
+                  "value": "INVESTOR_DETAILS"
+                },
+                {
+                  "descriptor": {
+                    "code": "STATUS"
+                  },
+                  "value": "SUCCESSFUL"
+                },
+                {
+                  "descriptor": {
+                    "code": "UPDATED_AT"
+                  },
+                  "value": "2026-09-02T09:25:10.000Z"
+                }
+              ]
+            },
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Onboarding Status",
+                "code": "ONBOARDING_STATUS"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "STAGE"
+                  },
+                  "value": "FATCA_CRS"
+                },
+                {
+                  "descriptor": {
+                    "code": "STATUS"
+                  },
+                  "value": "SUCCESSFUL"
+                },
+                {
+                  "descriptor": {
+                    "code": "UPDATED_AT"
+                  },
+                  "value": "2026-09-02T09:28:33.000Z"
+                }
+              ]
+            },
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Onboarding Status",
+                "code": "ONBOARDING_STATUS"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "STAGE"
+                  },
+                  "value": "NOMINEE"
+                },
+                {
+                  "descriptor": {
+                    "code": "STATUS"
+                  },
+                  "value": "SUCCESSFUL"
+                },
+                {
+                  "descriptor": {
+                    "code": "UPDATED_AT"
+                  },
+                  "value": "2026-09-02T09:31:02.000Z"
+                }
+              ]
+            },
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Onboarding Status",
+                "code": "ONBOARDING_STATUS"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "STAGE"
+                  },
+                  "value": "BANK_LINKAGE"
+                },
+                {
+                  "descriptor": {
+                    "code": "MODE"
+                  },
+                  "value": "UPI_PENNY_DROP"
+                },
+                {
+                  "descriptor": {
+                    "code": "STATUS"
+                  },
+                  "value": "SUCCESSFUL"
+                },
+                {
+                  "descriptor": {
+                    "code": "UPDATED_AT"
+                  },
+                  "value": "2026-09-02T09:34:11.000Z"
+                }
+              ]
+            },
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Onboarding Status",
+                "code": "ONBOARDING_STATUS"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "STAGE"
+                  },
+                  "value": "VKYC"
+                },
+                {
+                  "descriptor": {
+                    "code": "MODE"
+                  },
+                  "value": "VIDEO_LIVENESS"
+                },
+                {
+                  "descriptor": {
+                    "code": "STATUS"
+                  },
+                  "value": "PENDING"
+                },
+                {
+                  "descriptor": {
+                    "code": "UPDATED_AT"
+                  },
+                  "value": "2026-09-02T09:34:12.000Z"
+                }
+              ]
+            },
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Payment Option",
+                "code": "PAYMENT_OPTION"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "MODE"
+                  },
+                  "value": "NETBANKING"
+                },
+                {
+                  "descriptor": {
+                    "code": "MAX_AMOUNT"
+                  },
+                  "value": "1000000"
+                },
+                {
+                  "descriptor": {
+                    "code": "AVAILABILITY"
+                  },
+                  "value": "AVAILABLE"
+                }
+              ]
+            },
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Payment Option",
+                "code": "PAYMENT_OPTION"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "MODE"
+                  },
+                  "value": "UPI"
+                },
+                {
+                  "descriptor": {
+                    "code": "AUTH"
+                  },
+                  "value": "URI"
+                },
+                {
+                  "descriptor": {
+                    "code": "MAX_AMOUNT"
+                  },
+                  "value": "100000"
+                },
+                {
+                  "descriptor": {
+                    "code": "AVAILABILITY"
+                  },
+                  "value": "AVAILABLE"
+                }
+              ]
+            },
+            {
+              "display": true,
+              "descriptor": {
+                "name": "Payment Option",
+                "code": "PAYMENT_OPTION"
+              },
+              "list": [
+                {
+                  "descriptor": {
+                    "code": "MODE"
+                  },
+                  "value": "IMPS"
+                },
+                {
+                  "descriptor": {
+                    "code": "MAX_AMOUNT"
+                  },
+                  "value": "500000"
+                },
+                {
+                  "descriptor": {
+                    "code": "AVAILABILITY"
+                  },
+                  "value": "AVAILABLE"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "quote": {
+        "id": "quote_fd_5l_400d_625",
+        "price": {
+          "currency": "INR",
+          "value": "500000"
+        },
+        "breakup": [
+          {
+            "item": {
+              "id": "icici_fd_regular",
+              "fulfillment_ids": [
+                "ff_dep_01"
+              ]
+            },
+            "title": "PRINCIPAL",
+            "price": {
+              "currency": "INR",
+              "value": "500000"
+            }
+          }
+        ],
+        "ttl": "PT15M"
+      },
+      "cancellation_terms": [
+        {
+          "fulfillment_state": {
+            "descriptor": {
+              "code": "PENDING"
+            }
+          },
+          "reason_required": false,
+          "cancellation_fee": {
+            "percentage": "0.00"
+          }
+        },
+        {
+          "fulfillment_state": {
+            "descriptor": {
+              "code": "ACTIVE"
+            }
+          },
+          "reason_required": true,
+          "cancellation_fee": {
+            "percentage": "0.50"
+          }
+        }
+      ],
+      "refund_terms": [
+        {
+          "fulfillment_state": {
+            "descriptor": {
+              "code": "INITIATED"
+            }
+          },
+          "refund_eligible": true,
+          "refund_within": {
+            "duration": "P3D"
+          },
+          "refund_amount": {
+            "currency": "INR",
+            "value": "500000"
+          }
+        }
+      ],
+      "xinput": {
+        "required": false,
+        "form": {
+          "id": "form_bank"
+        },
+        "form_response": {
+          "status": "SUCCESS",
+          "submission_id": "8f30-4a12-77bd-9e01"
+        }
+      },
+      "tags": [
+        {
+          "display": false,
+          "descriptor": {
+            "name": "BPP Terms of Engagement",
+            "code": "BPP_TERMS"
+          },
+          "list": [
+            {
+              "descriptor": {
+                "code": "STATIC_TERMS"
+              },
+              "value": "https://www.icicibank.com/legal/ondc:fis15/static_terms?v=0.1"
+            },
+            {
+              "descriptor": {
+                "code": "OFFLINE_CONTRACT"
+              },
+              "value": "true"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
