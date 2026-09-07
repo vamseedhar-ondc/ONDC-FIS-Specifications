@@ -860,6 +860,7 @@ components:
               - NOMINEE_UPDATE
               - MATURITY_INSTRUCTION_UPDATE
               - DOCUMENT_REQUEST
+              - CHAIN_ABANDONED
           STATUS:
             required: mandatory
             enum: [ACCEPTED, IN_PROGRESS, SUCCESSFUL, REJECTED]

@@ -24,12 +24,6 @@ info:
     remains, restated in full at its new principal. The order stays ACTIVE
     throughout — it is the only cancellation scope where nothing terminates.
 
-    A CLOSED ONBOARDING CHAIN IS THE EMPTY SHAPE. Scope ONBOARDING_CHAIN
-    answers with an order that has no id, no items, no quote, no payments and no
-    cancellation_terms — none of them were ever minted — carrying only the
-    CANCELLED status, the fulfillment, and CANCELLATION_INFO saying why. It is
-    the only response on this call with no order id, and it is TERMINAL.
-
     THE PAYOUT IS AN APPENDED LEDGER ENTRY, not a new order. type ON_FULFILLMENT
     when a deposit paid out, REFUND when an unbooked order gave money back. The
     collection entry keeps its PAID status, because it was paid, and the ledger
@@ -114,24 +108,13 @@ paths:
                 value:
                   $ref: '../examples/on_cancel/fis15-on_cancel-05-order-cancelled.json'
 
-              Y6_chain_abandoned:
-                summary: 'Executed / ONBOARDING_CHAIN — the record is closed, and there is still no order id'
-                description: >-
-                  order CANCELLED with no id, correlated by transaction_id
-                  alone. No items, no quote, no payments and no
-                  cancellation_terms, because none of them was ever minted.
-                  CANCELLATION_INFO carries the reason back. Terminal: nothing
-                  further will be pushed on this transaction.
-                value:
-                  $ref: '../examples/on_cancel/fis15-on_cancel-06-chain-abandoned.json'
-
-              Y7_rejected:
+              Y6_rejected:
                 summary: 'Refused — 832023, inside the lock-in'
                 description: >-
                   A tax-saver deposit 400 days into a 1825-day lock-in. context
                   plus error, no order.
                 value:
-                  $ref: '../examples/on_cancel/fis15-on_cancel-07-rejected-832023.json'
+                  $ref: '../examples/on_cancel/fis15-on_cancel-06-rejected-832023.json'
       responses:
         default:
           description: ACK / NACK
@@ -226,42 +209,20 @@ components:
     Order:
       type: object
       additionalProperties: false
-      required: [status, provider, fulfillments, tags]
+      required: [id, status, provider, fulfillments, cancellation_terms, tags]
       description: >-
-        id is mandatory on every shape but one, on the same reasoning /on_status
-        and /on_update use. A cancellation normally names an order that
-        /on_confirm already minted; the single thing in FIS15 without an id is
-        an onboarding chain, and closing one is scope ONBOARDING_CHAIN on this
-        call. The if/then below ties the absence of the id to the whole empty
-        shape rather than leaving it to prose.
+        id is unconditionally mandatory here, unlike on /on_status and
+        /on_update. A cancellation always names an order that /on_confirm
+        already minted; the only thing in FIS15 without an id is an onboarding
+        chain, and ending one of those is /update, not this call.
 
         items AND quote ARE CONDITIONAL, and both hang on the same distinction.
         Scope ORDER ends an order whose deposit never existed: there are no
         economics to state and there was nothing to price, so the item and the
         quote are both absent. Both deposit scopes carry both. Requiring them
         unconditionally would have forced an issuer to invent an empty item and
-        a zero quote for the cases that have neither.
+        a zero quote for the one case that has neither.
       allOf:
-        - if:
-            required: [id]
-          then:
-            required: [cancellation_terms]
-          else:
-            allOf:
-              - properties:
-                  status: { const: CANCELLED }
-              - not: { required: [items] }
-              - not: { required: [quote] }
-              - not: { required: [payments] }
-              - not: { required: [documents] }
-              - not: { required: [refund_terms] }
-              - not: { required: [cancellation_terms] }
-          description: >-
-            THE ABANDONED-CHAIN SHAPE, enforced. An order id means an order was
-            minted, and an order that was minted has cancellation_terms from
-            /on_confirm. No id means the chain never got that far, so every
-            field that /on_confirm or a payment would have created is absent and
-            the only legal status is CANCELLED.
         - if:
             required: [items]
           then:
@@ -302,10 +263,6 @@ components:
         id:
           type: string
           example: FD-ICICI-20260902-004481
-          description: >-
-            Unchanged since /on_confirm. Absent ONLY on scope ONBOARDING_CHAIN,
-            where no order was ever minted and correlation is by transaction_id
-            alone.
         status:
           type: string
           enum: [ACCEPTED, ACTIVE, COMPLETED, CANCELLED]
@@ -314,9 +271,8 @@ components:
             ACCEPTED or ACTIVE on any quote. COMPLETED when a live deposit was
             broken in full — the contract ended as the contract provided, which
             is not the same as being cancelled. CANCELLED when an order was ended
-            before its deposit existed, and on a closed onboarding chain, which
-            is the same status with no id beside it. ACTIVE, unchanged, when a
-            partial withdrawal left the deposit running.
+            before its deposit existed. ACTIVE, unchanged, when a partial
+            withdrawal left the deposit running.
         provider:
           type: object
           additionalProperties: false
@@ -375,10 +331,9 @@ components:
           items:
             $ref: '#/components/schemas/CancellationTerm'
           description: >-
-            Restated on every shape that has an order id, including the quote, so
-            the investor can see the schedule the figure was computed against
-            rather than take the figure on trust. Absent on ONBOARDING_CHAIN,
-            where /on_confirm never ran and no terms were ever published.
+            Restated on every shape, including the quote, so the investor can see
+            the schedule the figure was computed against rather than take the
+            figure on trust.
         refund_terms:
           type: array
           items:
@@ -470,11 +425,10 @@ components:
                   enum: [PENDING, INITIATED, ACTIVE, CLOSED_PREMATURE, CANCELLED]
                   description: >-
                     Unchanged on a quote. CLOSED_PREMATURE on an executed full
-                    withdrawal. CANCELLED on an executed ORDER scope and on a
-                    closed ONBOARDING_CHAIN. ACTIVE, unchanged, on an executed
-                    partial. MATURED and FAILED cannot be produced by this call —
-                    the first is time passing and the second is a booking that
-                    did not happen.
+                    withdrawal. CANCELLED on an executed ORDER scope. ACTIVE,
+                    unchanged, on an executed partial. MATURED and FAILED cannot
+                    be produced by this call — the first is time passing and the
+                    second is a booking that did not happen.
         customer:
           type: object
           additionalProperties: false
@@ -513,12 +467,9 @@ components:
           items:
             $ref: '#/components/schemas/TagGroup'
           description: >-
-            CANCELLATION_INFO on every EXECUTE, including the abandoned chain,
-            where it is the only thing the response carries beyond the handle.
-            LINKED_BANK_ACCOUNT on any EXECUTE that moved money, naming the
-            account it went to. INVESTOR_STATUS as on every other issuer
-            response, except on ONBOARDING_CHAIN where the category was never
-            settled against an order.
+            CANCELLATION_INFO on every EXECUTE. LINKED_BANK_ACCOUNT on any
+            EXECUTE that moved money, naming the account it went to.
+            INVESTOR_STATUS as on every other issuer response.
 
     Payment:
       type: object
@@ -835,15 +786,6 @@ components:
             documents[] with the closure advice, and — on a partial only — the
             restated DEPOSIT_INFORMATION.
         - id: 3
-          name: Chain closed
-          answers: cancellation_type EXECUTE, scope ONBOARDING_CHAIN
-          state_change: order CANCELLED with NO id, fulfillment CANCELLED. Terminal.
-          carries: >-
-            the status, the fulfillment and CANCELLATION_INFO. NO id, NO items,
-            NO quote, NO payments, NO documents, NO cancellation_terms — none of
-            them was ever minted. It is shape 2 with everything an order would
-            have contributed removed.
-        - id: 4
           name: Refused
           answers: either type
           state_change: none
@@ -860,8 +802,7 @@ components:
           what it is — the money is in quote.breakup and the reasoning is here.
           Mandatory whenever CANCELLATION_SCOPE was DEPOSIT_FULL or
           DEPOSIT_PARTIAL, on both the quote and the executed shape. Absent on
-          ORDER and ONBOARDING_CHAIN, where nothing was computed because no
-          deposit existed.
+          scope ORDER, where nothing was computed because no deposit existed.
 
           Item level, because this is the deposit's economics and the deposit's
           economics have been item level since v0.2.0.
@@ -970,11 +911,6 @@ components:
           /on_status carries, with the same three fields, so a cancellation
           reported here and the same cancellation reported on a later status poll
           read identically.
-
-          On scope ONBOARDING_CHAIN it is the whole substance of the response.
-          Everything else that shape could carry was never created, so this group
-          is what makes a closed chain a record rather than a silence — which is
-          the point of having the call at all.
         list:
           CANCELLED_BY:
             required: mandatory
@@ -985,10 +921,7 @@ components:
               do silently.
           REASON_CODE:
             required: mandatory
-            description: >-
-              Echoes message.cancellation_reason_id from the /cancel. On a closed
-              chain that is one of INVESTOR_ABANDONED, ONBOARDING_TOO_LONG or
-              BAP_SESSION_EXPIRED.
+            description: Echoes message.cancellation_reason_id from the /cancel.
           REASON_MESSAGE:
             required: optional
 
@@ -1058,11 +991,7 @@ components:
         level: fulfillment
         required: mandatory
         cardinality: once
-        description: >-
-          Unchanged in shape from every other issuer response. Optional on scope
-          ONBOARDING_CHAIN alone: the depositor category is settled against an
-          order, and a chain that never became one may have no settled category
-          to state.
+        description: Unchanged in shape from every other issuer response.
         list:
           INVESTOR_CATEGORY:  { required: mandatory, enum: [INDIVIDUAL, JOINT, MINOR, HUF, NRI, CORPORATE] }
           DEPOSITOR_CATEGORY: { required: mandatory, enum: [GENERAL, SENIOR_CITIZEN, SUPER_SENIOR_CITIZEN, STAFF, NRE, NRO] }
@@ -1115,15 +1044,7 @@ components:
         double-counts it.
       - A full withdrawal ends the order as COMPLETED, not CANCELLED, and the
         fulfillment as CLOSED_PREMATURE. The contract ended on the terms the
-        contract set out. CANCELLED is for an order whose deposit never existed,
-        and for a chain that never became an order.
-      - THE CLOSED-CHAIN RESPONSE HAS NO ORDER ID, and that absence is what
-        identifies it. It is schema-tied to the whole empty shape — no items, no
-        quote, no payments, no documents, no refund_terms, no
-        cancellation_terms, and status CANCELLED. An issuer that returns an id
-        was not answering an ONBOARDING_CHAIN request.
-      - The closed-chain response is TERMINAL. Nothing further is pushed on that
-        transaction_id — not an /on_status, not a payout, not a correction.
+        contract set out. Only an order whose deposit never existed is CANCELLED.
       - A partial withdrawal changes NO state. The order stays ACTIVE and the
         fulfillment stays ACTIVE; the principal and the per-payout figures move
         and nothing else does.
@@ -1178,24 +1099,6 @@ components:
           With no withdrawal-typed fulfillment and no withdrawal child order,
           PREMATURE_WITHDRAWAL and PARTIAL_WITHDRAWAL are unreachable as
           fulfillment types and are retired from every enum in this revision.
-      empty-shape-not-a-second-call:
-        change: >-
-          A closed onboarding chain is answered on /on_cancel, in the same
-          response schema as every other cancellation, with the fields that never
-          existed simply absent.
-        why: >-
-          The alternative was a dedicated response — or leaving the whole act on
-          /on_update, where it was. Both cost more than the conditionality does.
-          Every field this shape omits is omitted for one stated reason, that
-          /on_confirm never ran, and one if/then keyed on the absence of the id
-          enforces all of them together. A buyer app that can already render a
-          scope-ORDER cancellation is most of the way to rendering this one.
-        cost: >-
-          order.id and cancellation_terms are no longer unconditionally
-          mandatory on this call, so an implementer reading the properties block
-          alone will over-trust both. The Order description says so first and the
-          if/then rejects the wrong shape, which is the best a schema can do
-          about a field that is usually there.
       completed-not-cancelled:
         change: >-
           A full premature withdrawal moves the order to COMPLETED. CANCELLED is
@@ -1270,6 +1173,4 @@ components:
         - FIS15_cancel_API.yaml — the call this answers
         - FIS15_on_status_API.yaml — reports the payout reaching PAID, and the
           order in its terminal state thereafter
-        - FIS15_init_API.yaml — the chain whose abandonment this call closes,
-          and whose abandoned-chains open point it resolves
       beckn-core: 1.3.0

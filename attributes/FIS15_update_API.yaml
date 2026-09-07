@@ -2,8 +2,9 @@ openapi: 3.0.0
 info:
   title: ONDC FIS15 — Update API
   description: >-
-    BAP → BPP change request against a deposit that already exists. Everything
-    after /on_confirm that is neither a poll nor an ending happens here.
+    BAP → BPP change request against a deposit that already exists, or against
+    an onboarding chain the investor has walked away from. Everything after
+    /on_confirm that is not a poll happens here.
 
     ONE TARGET PER CALL. message.update_target names exactly what is being
     changed, and the order carries only that. This is the inverse of /confirm,
@@ -13,10 +14,10 @@ info:
     anything it was not asked to touch. An order field outside the declared
     target is 832042.
 
-    FOUR TARGETS, AND ONLY FOUR. A fresh payment instruction, a nominee change,
-    a maturity-instruction change, and a document request. Each is a distinct
-    schema branch, so a malformed servicing call fails validation rather than
-    being half-applied.
+    FIVE TARGETS, AND ONLY FIVE. A fresh payment instruction, a nominee change,
+    a maturity-instruction change, a document request, and abandoning a chain
+    that never became an order. Each is a distinct schema branch, so a
+    malformed servicing call fails validation rather than being half-applied.
 
     WHAT THE CALL CARRIES DEPENDS ON WHETHER THE VALUE IS PRIVATE. A maturity
     instruction is one enum value and travels here directly. Nominee details are
@@ -26,13 +27,11 @@ info:
     content never traverses the protocol does not lapse once the deposit is
     booked.
 
-    /update ENDS NOTHING. There is no order.status target and this call cannot
-    move an order into any state. Breaking a booked deposit, taking part of one
-    out, cancelling an order whose deposit does not exist yet, and closing an
-    onboarding chain the investor walked away from are all /cancel — scopes
-    DEPOSIT_FULL, DEPOSIT_PARTIAL, ORDER and ONBOARDING_CHAIN. order.status was
-    a target in the previous revision, for the abandonment case alone; it has
-    moved to /cancel and the two paths are not both valid.
+    /update DOES NOT CANCEL A DEPOSIT. order.status is a legal target only for
+    an onboarding chain that never reached /on_confirm, where there is no order
+    id and nothing to unwind. Breaking a booked deposit is a premature
+    withdrawal — it is priced, it is penalised, and it belongs to a call this
+    version does not yet define. See open-points.withdrawal-boundary.
 
     Domain code ONDC:FIS15 and error range 832001-832042 are requested from
     ONDC and not yet allocated.
@@ -45,7 +44,7 @@ servers:
 paths:
   /update:
     post:
-      summary: Change one thing about an order
+      summary: Change one thing about an order, or abandon a chain
       description: >-
         Returns an ACK/NACK synchronously; the outcome arrives on the BAP's
         /on_update. Whether the change is applied immediately or opens a form
@@ -99,6 +98,16 @@ paths:
                   so no 2FA; DOCUMENT_REQUEST names the document and the year.
                 value:
                   $ref: '../examples/update/fis15-update-04-document-request.json'
+
+              U5_abandon_chain:
+                summary: 'order.status — the investor abandoned onboarding after KYC'
+                description: >-
+                  NO ORDER ID, because none was ever minted. Correlated by
+                  transaction_id alone, exactly as a mid-chain /on_status push
+                  is. This lets the issuer close a record it would otherwise
+                  hold open against verified KYC and no order.
+                value:
+                  $ref: '../examples/update/fis15-update-05-abandon-chain.json'
       responses:
         default:
           description: ACK / NACK
@@ -180,7 +189,7 @@ components:
       additionalProperties: false
       required: [update_target, order]
       description: >-
-        Four branches, one per target. The branch pins update_target to a const
+        Five branches, one per target. The branch pins update_target to a const
         and states exactly which parts of the order may travel with it —
         including, where it matters, which parts may NOT.
       properties:
@@ -191,6 +200,7 @@ components:
             - order.fulfillments[].tags.NOMINEE_INFORMATION
             - order.items[].tags.DEPOSIT_INFORMATION
             - order.documents
+            - order.status
           description: >-
             Dot-path naming the thing being replaced, at the level it lives.
             Exactly one per call; FIS15 does not support a comma-separated
@@ -209,6 +219,7 @@ components:
                   not:
                     anyOf:
                       - required: [items]
+                      - required: [status]
                       - required: [documents]
             - properties:
                 order:
@@ -232,6 +243,7 @@ components:
                     anyOf:
                       - required: [payments]
                       - required: [items]
+                      - required: [status]
                       - required: [documents]
             - properties:
                 order:
@@ -254,6 +266,7 @@ components:
                   not:
                     anyOf:
                       - required: [payments]
+                      - required: [status]
                       - required: [documents]
             - properties:
                 order:
@@ -299,6 +312,31 @@ components:
                     anyOf:
                       - required: [payments]
                       - required: [items]
+                      - required: [status]
+            - properties:
+                order:
+                  properties:
+                    fulfillments:
+                      items:
+                        properties:
+                          customer:
+                            properties:
+                              person:
+                                not: { required: [creds] }
+        - title: Abandon an onboarding chain
+          properties:
+            update_target: { const: order.status }
+          required: [update_target]
+          allOf:
+            - properties:
+                order:
+                  required: [status, provider, fulfillments, tags]
+                  not:
+                    anyOf:
+                      - required: [id]
+                      - required: [payments]
+                      - required: [items]
+                      - required: [documents]
             - properties:
                 order:
                   properties:
@@ -314,20 +352,24 @@ components:
       type: object
       additionalProperties: false
       description: >-
-        A PARTIAL ORDER, and deliberately so. It carries the handle, the
-        provider, and the one thing being changed. Everything else the issuer
-        already holds.
-      required: [id]
+        A PARTIAL ORDER, and deliberately so. It carries the handle (id, or
+        transaction_id alone when abandoning), the provider, and the one thing
+        being changed. Everything else the issuer already holds.
       properties:
         id:
           type: string
           example: FD-ICICI-20260902-004481
           description: >-
-            The id minted at /on_confirm, and MANDATORY ON EVERY TARGET — every
-            servicing call names an order that exists. The one thing in FIS15
-            without an id is an onboarding chain, and closing one is /cancel on
-            scope ONBOARDING_CHAIN, not a call here. An id the issuer does not
-            recognise, or one belonging to another investor, is 832033.
+            The id minted at /on_confirm. Mandatory on every target except
+            order.status, where by definition no order was ever created. An id
+            the issuer does not recognise, or one belonging to another investor,
+            is 832033.
+        status:
+          type: string
+          enum: [CANCELLED]
+          description: >-
+            Present only when update_target is order.status, and only ever
+            CANCELLED. The buyer app cannot drive an order into any other state.
         provider:
           type: object
           additionalProperties: false
@@ -338,7 +380,7 @@ components:
           type: array
           items: { type: string }
           description: >-
-            Parent FD order id. Unused on the four targets defined here;
+            Parent FD order id. Unused on the five targets defined here;
             retained for the servicing journeys that will carry it.
         items:
           type: array
@@ -442,9 +484,9 @@ components:
                     MANDATORY ON THE DEPOSIT_INFORMATION TARGET ONLY, where it
                     must carry PAN, IP_ADDRESS and exactly one 2FA credential —
                     the same three /confirm requires, enforced the same way.
-                    Absent on every other target — a retry, a form request and a
-                    document request change nothing the investor has to
-                    re-authorise.
+                    Absent on every other target: a retry, a form request, a
+                    document request and an abandonment change nothing the
+                    investor has to re-authorise.
             contact:
               type: object
               additionalProperties: false
@@ -476,8 +518,9 @@ components:
           items:
             $ref: '#/components/schemas/TagGroup'
           description: >-
-            DOCUMENT_REQUEST on the order.documents target. Absent on the other
-            three — the target already says everything.
+            DOCUMENT_REQUEST on the order.documents target, CANCELLATION_INFO on
+            the order.status target. Absent on the other three — the target
+            already says everything.
 
     MaturityInstructionTagGroup:
       type: object
@@ -727,14 +770,14 @@ components:
           two_fa: false
           applied_by: /on_update, immediately — documents[] with the URLs.
           precondition: fulfillment ACTIVE, MATURED, CLOSED_PREMATURE or SUCCESSFUL.
-      retired:
         - target: order.status
-          was: Abandon an onboarding chain the investor will not finish.
-          now: >-
-            /cancel with cancellation_scope ONBOARDING_CHAIN. Same payload
-            shape — no order id, no 2FA, terminal — carried by a call whose job
-            is ending things. See decisions.abandon-lives-here-not-in-update in
-            FIS15_cancel_API.yaml. 832041 moved with it.
+          job: Abandon an onboarding chain the investor will not finish.
+          carries: status CANCELLED and CANCELLATION_INFO. NO ORDER ID.
+          two_fa: false
+          applied_by: /on_update, immediately and terminally.
+          precondition: >-
+            No order id exists — the chain never reached /on_confirm. Sending
+            this against a created order is 832041.
 
     tag-groups:
 
@@ -798,6 +841,33 @@ components:
               A preference, not a demand. The issuer answers with what it has and
               declares it in documents[].mime_type.
 
+      CANCELLATION_INFO:
+        level: fulfillment
+        required: conditional
+        description: >-
+          Present only on the order.status target. The same group /on_status
+          carries when reporting a cancellation, sent in the other direction so
+          that a chain the investor abandoned is recorded with a reason rather
+          than simply going quiet.
+        list:
+          CANCELLED_BY:
+            required: mandatory
+            enum: [BAP, INVESTOR]
+            description: >-
+              BPP is not permitted here. The issuer cancels by pushing an
+              /on_status, not by receiving an /update.
+          REASON_CODE:
+            required: mandatory
+            enum:
+              - INVESTOR_ABANDONED
+              - INVESTOR_CHANGED_MIND
+              - RATE_NO_LONGER_ACCEPTABLE
+              - ONBOARDING_TOO_LONG
+              - BAP_SESSION_EXPIRED
+          REASON_MESSAGE:
+            required: optional
+            description: Human-readable, for the issuer's own record.
+
       PAYMENT_METHOD:
         level: payment
         required: conditional
@@ -837,6 +907,9 @@ components:
           No payment retry available — the order is not in a retryable state, or
           the issuer's retry limit for this order is exhausted.
         832040: Servicing action not permitted on this product by this issuer.
+        832041: >-
+          Abandon refused — an order already exists for this transaction, or the
+          chain is already terminal.
       reused:
         832021: 2FA credential does not match the contact on record.
         832029: The retried rail is not one PAYMENT_OPTION advertised, or the amount is outside its bounds.
@@ -850,8 +923,8 @@ components:
       - TAG LEVELS ARE FIXED ACROSS THE JOURNEY, and servicing does not relax
         them. item carries the deposit's economics — DEPOSIT_INFORMATION here,
         partial. fulfillment carries the investor and the servicing —
-        DOCUMENT_REQUEST. payment carries money movement. order carries only
-        BAP_TERMS on this call.
+        DOCUMENT_REQUEST and CANCELLATION_INFO. payment carries money movement.
+        order carries only BAP_TERMS on this call.
       - Dates live in stops, never in a tag. This call sends no stops at all,
         because nothing it can change is a date.
       - ONE TARGET PER CALL. Two changes are two calls, and they are not
@@ -880,11 +953,11 @@ components:
         832029.
       - The buyer app sends ONE payment attempt, never a ledger. The append-only
         ledger is the issuer's and is reported on /on_update and /on_status.
-      - THIS CALL CHANGES NO STATE. There is no order.status target and no
-        order.status field; an order carrying one is 832042. Ending an order,
-        a deposit or an onboarding chain is /cancel.
-      - order.id is MANDATORY on every target. A servicing call always names an
-        order that exists.
+      - order.status is CANCELLED only, and only where no order id exists.
+        Cancelling a booked deposit is a premature withdrawal, which this
+        version does not define.
+      - No order id on the order.status target — correlation is by
+        transaction_id alone, as it is for every mid-chain /on_status push.
       - The transaction_id is the one minted at the opening /select, however
         many months ago. A buyer app that discarded it at /on_confirm cannot
         service the deposit it sold.
@@ -969,30 +1042,24 @@ components:
           let an issuer move the number after the investor has signed, which is
           the exact failure the terminal-binding-quote decision was designed to
           prevent at the other end of the journey.
-      abandon-moved-to-cancel:
+      abandon-lives-here-not-in-cancel:
         change: >-
-          The order.status target is RETIRED. Closing an abandoned onboarding
-          chain is /cancel with cancellation_scope ONBOARDING_CHAIN.
+          Abandoning an onboarding chain is an /update on order.status, not a
+          /cancel.
         why: >-
-          The previous revision put it here on the argument that there is
-          nothing to cancel — no order id, no money, no contract, only an issuer
-          holding verified KYC against nothing. That argument proved too much.
-          /cancel's ORDER scope already ends something with no deposit behind
-          it, so "nothing was booked" was never the line between the two calls;
-          the line is between changing a thing and ending it. Keeping a
-          terminating target here also cost this call its cleanest invariant —
-          that it names an order that exists — and made order.id conditional on
-          a branch every reader had to check.
-        knock-on: >-
-          order.id is unconditionally mandatory again, order.status is gone from
-          the Order schema, CANCELLATION_INFO is no longer a group this call
-          sends, and 832041 moved to FIS15_cancel_API.yaml. /on_update lost the
-          CANCELLED order status, the CANCELLED fulfillment state and the
-          CHAIN_ABANDONED servicing action with it.
+          There is nothing to cancel. No order id exists, no money has moved, no
+          contract was struck; the only thing that exists is an issuer holding
+          verified KYC against nothing. This closes the abandoned-chains open
+          point in FIS15_init_API.yaml with the smallest call that does the job.
+        cost: >-
+          order.status is now a legal update target, which invites the reading
+          that a booked deposit can be cancelled the same way. The schema
+          forbids it — the branch requires the absence of order.id — and
+          832041 catches an issuer that implements it anyway.
 
     open-points:
       withdrawal-boundary:
-        status: resolved
+        status: unresolved
         question: >-
           Premature and partial withdrawal are the two Post-Booking Services the
           BRD asks for that this call deliberately does not cover. They are
@@ -1000,15 +1067,11 @@ components:
           update — but /confirm and /on_confirm currently require a payments
           entry with collected_by BPP, status NOT-PAID and type PRE_FULFILLMENT,
           which a withdrawal cannot satisfy because the money moves outward.
-        decision: >-
-          Defined on /cancel and /on_cancel, scopes DEPOSIT_FULL and
-          DEPOSIT_PARTIAL, with a two-phase QUOTE then EXECUTE and the payout
-          appended to the parent order's ledger. The earlier recommendation here
-          — a fresh select-init-confirm chain carrying ref_order_ids — was
-          examined and rejected in decisions.cancel-not-a-booking-chain in
-          FIS15_cancel_API.yaml, and no widening of the payment type enum was
-          needed. The same pair now also carries the abandonment case this call
-          used to hold.
+        recommendation: >-
+          Define withdrawal as a fresh select-init-confirm chain carrying
+          ref_order_ids, and widen the payment type enum to admit a
+          disbursement, rather than overloading /update with a call that needs a
+          quote and a penalty schedule.
       servicing-cutoffs-not-published:
         status: resolved
         question: >-
@@ -1069,10 +1132,10 @@ components:
           order.payments."
         - FIS15_on_status_API.yaml rules — "the buyer app requests a fresh link
           via /update on order.payments; it does not restart the journey."
+        - FIS15_init_API.yaml open-points.abandoned-chains — "an explicit
+          /update path that abandons a transaction"
       chains-with:
         - FIS15_on_update_API.yaml — answers it
         - FIS15_on_confirm_API.yaml — mints the order id and the first payment attempt
         - FIS15_on_status_API.yaml — reports the outcome of every form-driven target
-        - FIS15_cancel_API.yaml — the other post-booking call, and the one that
-          ends things. Everything this call used to terminate lives there now.
       beckn-core: 1.3.0
