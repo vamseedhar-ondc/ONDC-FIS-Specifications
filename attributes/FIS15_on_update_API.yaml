@@ -90,22 +90,13 @@ paths:
                 value:
                   $ref: '../examples/on_update/fis15-on_update-04-documents.json'
 
-              V5_chain_abandoned:
-                summary: 'Applied — the chain is closed, and there is still no order id'
-                description: >-
-                  status CANCELLED with no order.id, correlated by
-                  transaction_id alone. Terminal: nothing further will be pushed
-                  on this transaction.
-                value:
-                  $ref: '../examples/on_update/fis15-on_update-05-chain-abandoned.json'
-
-              V6_rejected:
+              V5_rejected:
                 summary: 'Refused — 832038, past the maturity-instruction cut-off'
                 description: >-
                   context plus error, no order. The investor asked seven days
                   before maturity and the issuer needs fifteen.
                 value:
-                  $ref: '../examples/on_update/fis15-on_update-06-rejected-832038.json'
+                  $ref: '../examples/on_update/fis15-on_update-05-rejected-832038.json'
       responses:
         default:
           description: ACK / NACK
@@ -201,37 +192,28 @@ components:
     Order:
       type: object
       additionalProperties: false
-      required: [status, provider, fulfillments, tags]
+      required: [id, status, provider, fulfillments, tags]
       description: >-
-        id is conditional, on exactly the same reasoning /on_status uses. An
-        abandoned chain never had one, so requiring it unconditionally would
-        forbid the message that closes the chain; making it optional everywhere
-        would let a serviced deposit come back without the one handle the buyer
-        app needs. The if/then below is the only correct shape.
-      if:
-        required: [status]
-        properties:
-          status:
-            not: { const: CANCELLED }
-      then:
-        required: [id]
+        id is UNCONDITIONALLY MANDATORY here, unlike on /on_status. Every
+        servicing action is against an order that /on_confirm already minted.
+        The one response in FIS15 that came back without an id was the closed
+        onboarding chain, and that moved to /on_cancel with the rest of the
+        abandonment case — so the if/then this schema used to carry is gone and
+        the buyer app always has its handle.
       properties:
         id:
           type: string
           example: FD-ICICI-20260902-004481
-          description: >-
-            Unchanged since /on_confirm. Absent only when the response closes an
-            onboarding chain that never had one.
+          description: Unchanged since /on_confirm.
         status:
           type: string
-          enum: [ACCEPTED, ACTIVE, CANCELLED]
+          enum: [ACCEPTED, ACTIVE]
           description: >-
             THE ORDER'S STATE AFTER THE CHANGE, not a description of the change.
             ACCEPTED on a payment retry, because the deposit still does not
             exist. ACTIVE on every servicing action against a booked deposit.
-            CANCELLED only when an onboarding chain was abandoned, and then with
-            no id. Servicing never moves an order to COMPLETED — maturity does
-            that, and it is reported on /on_status.
+            SERVICING TERMINATES NOTHING — this call cannot return CANCELLED or
+            COMPLETED. An ending is /on_cancel and maturity is /on_status.
         provider:
           type: object
           additionalProperties: false
@@ -363,12 +345,13 @@ components:
                 name: { type: string }
                 code:
                   type: string
-                  enum: [PENDING, ACTIVE, CANCELLED]
+                  enum: [PENDING, ACTIVE]
                   description: >-
                     PENDING on a payment retry, ACTIVE on servicing a booked
-                    deposit, CANCELLED on an abandoned chain. A servicing call
-                    cannot produce MATURED, FAILED or CLOSED_PREMATURE — those
-                    are lifecycle events and arrive on /on_status.
+                    deposit. A servicing call cannot produce CANCELLED, MATURED,
+                    FAILED or CLOSED_PREMATURE — the first is a cancellation and
+                    arrives on /on_cancel, the rest are lifecycle events and
+                    arrive on /on_status.
         customer:
           type: object
           additionalProperties: false
@@ -409,7 +392,7 @@ components:
             SERVICING_STATUS always. NOMINEE_INFORMATION once a nominee change
             has resolved, PAYMENT_INSTRUCTION on a push-rail retry,
             PAYMENT_ADVICE where the accepted rail differs from the one asked
-            for, CANCELLATION_INFO on an abandoned chain.
+            for.
           contains:
             type: object
             required: [descriptor]
@@ -768,13 +751,13 @@ components:
       list:
         - id: 1
           name: Applied
-          targets: [order.payments, 'order.items[].tags.DEPOSIT_INFORMATION', order.documents, order.status]
+          targets: [order.payments, 'order.items[].tags.DEPOSIT_INFORMATION', order.documents]
           xinput: absent
           servicing_status: SUCCESSFUL
           carries: >-
             The changed thing and nothing else — the appended payments entry and
             a fresh quote.ttl, or the full updated DEPOSIT_INFORMATION, or
-            documents[], or status CANCELLED with CANCELLATION_INFO.
+            documents[].
         - id: 2
           name: Form issued
           targets: ['order.fulfillments[].tags.NOMINEE_INFORMATION']
@@ -816,10 +799,13 @@ components:
               - NOMINEE_UPDATE
               - MATURITY_INSTRUCTION_UPDATE
               - DOCUMENT_REQUEST
-              - CHAIN_ABANDONED
             description: >-
               One value per update_target. The enum is deliberately named for
               what the investor did, not for the dot-path they sent.
+              CHAIN_ABANDONED was a fifth value and is retired — closing an
+              abandoned chain is /cancel on scope ONBOARDING_CHAIN, and it
+              reports through CANCELLATION_INFO on /on_cancel rather than as a
+              servicing action.
           STATUS:
             required: mandatory
             enum: [ACCEPTED, IN_PROGRESS, SUCCESSFUL, REJECTED]
@@ -979,18 +965,6 @@ components:
             enum: [URI, COLLECT]
             description: Mandatory when MODE is UPI; not permitted otherwise.
 
-      CANCELLATION_INFO:
-        level: fulfillment
-        required: conditional
-        description: >-
-          Mandatory when the response closes an abandoned chain. Echoes what the
-          buyer app declared, with CANCELLED_BY as sent — the issuer records who
-          ended it, and does not substitute itself.
-        list:
-          CANCELLED_BY:   { required: mandatory, enum: [BAP, BPP, INVESTOR] }
-          REASON_CODE:    { required: mandatory }
-          REASON_MESSAGE: { required: optional }
-
       BPP_TERMS:
         level: order
         required: mandatory
@@ -1005,9 +979,8 @@ components:
       - TAG LEVELS ARE FIXED ACROSS THE JOURNEY. item carries the deposit's
         economics — DEPOSIT_INFORMATION, full, as the issuer always states it.
         fulfillment carries the investor and the servicing — SERVICING_STATUS,
-        NOMINEE_INFORMATION, PAYMENT_INSTRUCTION, PAYMENT_ADVICE,
-        CANCELLATION_INFO. payment carries money movement. order carries only
-        BPP_TERMS.
+        NOMINEE_INFORMATION, PAYMENT_INSTRUCTION, PAYMENT_ADVICE. payment
+        carries money movement. order carries only BPP_TERMS.
       - Dates live in stops, never in a tag. EFFECTIVE_FROM in SERVICING_STATUS
         is not an exception — it dates the ACTION, not the deposit, and the
         deposit's own MATURITY_DATE that it refers to is in stops.
@@ -1034,12 +1007,12 @@ components:
         unsolicited /on_status once the form resolves.
       - A servicing form is always xinput.required true. There is no optional
         servicing step — the investor asked for it.
-      - order.id is absent only when status is CANCELLED on an abandoned chain,
-        and that response is TERMINAL. Nothing further is pushed on that
-        transaction_id.
-      - Servicing never moves an order to COMPLETED and never moves a
-        fulfillment to MATURED, FAILED or CLOSED_PREMATURE. Those are lifecycle
-        events and belong to /on_status.
+      - order.id is ALWAYS PRESENT. Every response on this call answers a
+        servicing action against an order that exists.
+      - Servicing never moves an order to CANCELLED or COMPLETED and never moves
+        a fulfillment to CANCELLED, MATURED, FAILED or CLOSED_PREMATURE. Endings
+        belong to /on_cancel; the rest are lifecycle events and belong to
+        /on_status.
       - A refusal is context plus error with NO order. There is no REJECTED
         servicing status on this call — the error envelope carries it, on the
         same reasoning that removed the REJECTED order status from /on_confirm.
@@ -1111,6 +1084,23 @@ components:
           obligation: diff quote.id and quote.price against the terminal
           /on_init before rendering a retry, and treat a difference as 832042
           rather than as a new price to show the investor.
+      no-terminal-states-here:
+        change: >-
+          CANCELLED is gone from the order status enum, from the fulfillment
+          state enum and from the ACTION enum, and order.id is unconditionally
+          mandatory again.
+        why: >-
+          This pair carried exactly one terminating case — the abandoned
+          onboarding chain — and it has moved to /cancel, where ending things is
+          the job. What it cost while it was here was the invariant that a
+          servicing response names an order: id had to be conditional, and the
+          condition was an if/then on a status value that appeared nowhere else.
+          Removing one enum value bought back an unconditional required list.
+        cost: >-
+          A buyer app written against the previous revision has a branch for a
+          CANCELLED /on_update that will never fire. It is dead code rather than
+          a wrong answer, and the schema now rejects the payload it was waiting
+          for.
       never-unsolicited:
         change: >-
           /on_update is always a reply. Form outcomes go to /on_status.
@@ -1169,8 +1159,10 @@ components:
         - FD_ONDC_BRD_Final.docx v1.0, Post-Booking Services
         - FIS15_on_confirm_API.yaml — the rail branch, the payment object and the single-use URL rule
         - FIS15_on_init_API.yaml — the xinput chain driver, reused unchanged for servicing forms
-        - FIS15_on_status_API.yaml — the append-only ledger, the Document shape and the conditional order id
+        - FIS15_on_status_API.yaml — the append-only ledger and the Document shape
       chains-with:
         - FIS15_update_API.yaml — the call this answers
         - FIS15_on_status_API.yaml — resolves every form-driven target and must carry SERVICING_STATUS forward
+        - FIS15_on_cancel_API.yaml — carries every terminal outcome, including
+          the abandoned chain this call used to close
       beckn-core: 1.3.0

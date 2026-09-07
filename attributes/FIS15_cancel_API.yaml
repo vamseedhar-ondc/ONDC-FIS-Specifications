@@ -9,6 +9,14 @@ info:
     at different points on the timeline, and all three are priced against the
     same cancellation_terms the issuer published at /on_confirm.
 
+    A FOURTH SITUATION ENDS SOMETHING THAT NEVER BECAME A CONTRACT. An investor
+    who finishes KYC and walks away leaves the issuer holding a verified
+    onboarding record against no order, and nothing expires it. Scope
+    ONBOARDING_CHAIN closes that record. It is the only scope with no order id,
+    no quote, no money and no 2FA, and it lives here rather than on /update
+    because ending a thing is what this call is for — a servicing call that
+    could also terminate would be two calls wearing one name.
+
     TWO PHASES, ALWAYS AVAILABLE, AND THE FIRST ONE IS FREE. cancellation_type
     QUOTE asks what breaking the deposit would cost and changes nothing;
     EXECUTE does it. The BRD requires the penalty to be on screen before the
@@ -16,11 +24,14 @@ info:
     it there. QUOTE is repeatable and carries no 2FA — it is a question, not an
     instruction.
 
-    EVERY EXECUTE CARRIES 2FA. /confirm required a one-time password to create
-    the contract; ending one is not a lesser act. The rule is flat rather than
-    conditional on how much money is at stake, because a rule an implementer has
-    to evaluate is a rule an implementer gets wrong, and there is no case where
-    an unauthenticated party should be able to close someone's deposit.
+    EVERY EXECUTE AGAINST A CONTRACT CARRIES 2FA. /confirm required a one-time
+    password to create the contract; ending one is not a lesser act. The rule is
+    flat across the three contract scopes rather than conditional on how much
+    money is at stake, because a rule an implementer has to evaluate is a rule an
+    implementer gets wrong, and there is no case where an unauthenticated party
+    should be able to close someone's deposit. ONBOARDING_CHAIN is outside that
+    rule and not an exception inside it — there is no contract to end and no
+    money to move. See decisions.two-fa-follows-the-contract.
 
     PARTIAL WITHDRAWAL IS NOT A CANCELLATION AND IS HANDLED HERE ANYWAY. The
     deposit survives with a smaller principal, so nothing is cancelled in the
@@ -45,7 +56,7 @@ servers:
 paths:
   /cancel:
     post:
-      summary: Quote, or carry out, the ending of a deposit
+      summary: Quote, or carry out, the ending of a deposit or an onboarding chain
       description: >-
         Returns an ACK/NACK synchronously; the quote or the outcome arrives on
         the BAP's /on_cancel. A QUOTE mints a cancellation quote with a ttl, and
@@ -107,6 +118,17 @@ paths:
                   still required: an order is still a contract.
                 value:
                   $ref: '../examples/cancel/fis15-cancel-05-unpaid-order.json'
+
+              X6_abandon_chain:
+                summary: 'EXECUTE / ONBOARDING_CHAIN — the investor never finished onboarding'
+                description: >-
+                  NO ORDER ID, because none was ever minted — correlated by
+                  transaction_id alone, exactly as a mid-chain /on_status push
+                  is. No quote id and no 2FA either. This is the whole payload
+                  the scope needs, and it lets the issuer close a record it
+                  would otherwise hold open against verified KYC and no order.
+                value:
+                  $ref: '../examples/cancel/fis15-cancel-06-abandon-chain.json'
       responses:
         default:
           description: ACK / NACK
@@ -192,21 +214,24 @@ components:
     CancelMessage:
       type: object
       additionalProperties: false
-      required: [order_id, cancellation_type, cancellation_scope, cancellation_reason_id, order]
+      required: [cancellation_type, cancellation_scope, cancellation_reason_id, order]
       description: >-
-        order_id sits at message level, as it does on /status, because a
-        cancellation always names an order that already exists — there is no
-        pre-order cancellation here. Abandoning an onboarding chain that never
-        became an order is /update on order.status, and the two are not the same
-        act: one ends a contract, the other closes a record of something that
-        never became one.
+        order_id sits at message level, as it does on /status, because on three
+        of the four scopes a cancellation names an order that already exists. On
+        ONBOARDING_CHAIN there is no order to name, so the field is conditional
+        rather than mandatory — the two acts are not the same: one ends a
+        contract, the other closes a record of something that never became one.
       properties:
         order_id:
           type: string
           example: FD-ICICI-20260902-004481
           description: >-
-            Minted at /on_confirm. An id the issuer does not recognise, or one
-            belonging to another investor, is 832033.
+            Minted at /on_confirm. MANDATORY on every scope except
+            ONBOARDING_CHAIN, where no order was ever created and correlation is
+            by transaction_id alone. An id the issuer does not recognise, or one
+            belonging to another investor, is 832033; an id sent on
+            ONBOARDING_CHAIN is 832041, because an order that exists is not an
+            abandoned chain.
         cancellation_type:
           type: string
           enum: [QUOTE, EXECUTE]
@@ -216,17 +241,20 @@ components:
             investor a decision it has not priced.
         cancellation_scope:
           type: string
-          enum: [ORDER, DEPOSIT_FULL, DEPOSIT_PARTIAL]
+          enum: [ONBOARDING_CHAIN, ORDER, DEPOSIT_FULL, DEPOSIT_PARTIAL]
           description: >-
+            ONBOARDING_CHAIN — close a chain that never reached /on_confirm.
+            There is no order, no fulfillment state to match, and no money.
+            EXECUTE only.
             ORDER — end an order whose deposit does not exist yet, paid or
             unpaid. The fulfillment is PENDING or INITIATED.
             DEPOSIT_FULL — break a live deposit. The fulfillment is ACTIVE.
             DEPOSIT_PARTIAL — take part of a live deposit out and leave the rest
             running.
 
-            The scope must match the fulfillment's actual state or the answer is
-            832022. A buyer app holds that state from the last /on_status and
-            should not need to be told.
+            On the three order scopes the scope must match the fulfillment's
+            actual state or the answer is 832022. A buyer app holds that state
+            from the last /on_status and should not need to be told.
         cancellation_reason_id:
           type: string
           enum:
@@ -237,11 +265,19 @@ components:
             - PAYMENT_NOT_COMPLETED
             - DUPLICATE_BOOKING
             - INVESTOR_REQUEST_OTHER
+            - INVESTOR_ABANDONED
+            - ONBOARDING_TOO_LONG
+            - BAP_SESSION_EXPIRED
           description: >-
             Why the investor is ending it. Mandatory on a QUOTE as well as an
             EXECUTE, because an issuer may price a retention offer differently
             against FUNDS_NEEDED_EARLY than against BETTER_RATE_AVAILABLE, and
             because cancellation_terms may set reason_required true.
+
+            The last three values are ONBOARDING_CHAIN's, and they are the ones
+            the retired CANCELLATION_INFO.REASON_CODE on /update carried. They
+            say why a chain was closed, not why a contract was ended, and an
+            issuer receiving one against an order scope answers 832042.
         descriptor:
           type: object
           additionalProperties: false
@@ -253,6 +289,26 @@ components:
                 never a substitute for cancellation_reason_id.
         order:
           $ref: '#/components/schemas/Order'
+      allOf:
+        - if:
+            required: [cancellation_scope]
+            properties:
+              cancellation_scope: { const: ONBOARDING_CHAIN }
+          then:
+            allOf:
+              - not: { required: [order_id] }
+              - properties:
+                  cancellation_type: { const: EXECUTE }
+              - properties:
+                  order:
+                    not: { required: [quote] }
+          else:
+            required: [order_id]
+          description: >-
+            THE SHAPE OF AN ABANDONED CHAIN, enforced rather than described.
+            No order id because none exists, EXECUTE only because nothing can be
+            priced, no quote id for the same reason. Every other scope carries an
+            order id unconditionally.
       oneOf:
         - title: Quote — ask what it costs
           properties:
@@ -275,38 +331,62 @@ components:
             cancellation_type: { const: EXECUTE }
           required: [cancellation_type]
           allOf:
-            - properties:
-                order:
-                  properties:
-                    fulfillments:
-                      items:
-                        properties:
-                          customer:
-                            required: [person, contact]
-                            properties:
-                              person:
-                                required: [id, creds]
-                                properties:
-                                  creds:
-                                    minItems: 3
-                                    allOf:
-                                      - contains:
-                                          type: object
-                                          required: [type]
-                                          properties:
-                                            type: { const: PAN }
-                                      - contains:
-                                          type: object
-                                          required: [type]
-                                          properties:
-                                            type: { const: IP_ADDRESS }
-                                      - contains:
-                                          type: object
-                                          required: [type]
-                                          properties:
-                                            type:
-                                              type: string
-                                              enum: [2FA_PHONE_OTP, 2FA_EMAIL_OTP]
+            - if:
+                required: [cancellation_scope]
+                properties:
+                  cancellation_scope:
+                    not: { const: ONBOARDING_CHAIN }
+              then:
+                properties:
+                  order:
+                    properties:
+                      fulfillments:
+                        items:
+                          properties:
+                            customer:
+                              required: [person, contact]
+                              properties:
+                                person:
+                                  required: [id, creds]
+                                  properties:
+                                    creds:
+                                      minItems: 3
+                                      allOf:
+                                        - contains:
+                                            type: object
+                                            required: [type]
+                                            properties:
+                                              type: { const: PAN }
+                                        - contains:
+                                            type: object
+                                            required: [type]
+                                            properties:
+                                              type: { const: IP_ADDRESS }
+                                        - contains:
+                                            type: object
+                                            required: [type]
+                                            properties:
+                                              type:
+                                                type: string
+                                                enum: [2FA_PHONE_OTP, 2FA_EMAIL_OTP]
+              else:
+                properties:
+                  order:
+                    properties:
+                      fulfillments:
+                        items:
+                          properties:
+                            customer:
+                              not: { required: [contact] }
+                              properties:
+                                person:
+                                  not: { required: [creds] }
+              description: >-
+                2FA IS A PROPERTY OF THE CONTRACT SCOPES, not of EXECUTE. The
+                three that end an order require PAN, IP_ADDRESS and one 2FA
+                credential; ONBOARDING_CHAIN forbids all three, on the same
+                reasoning that forbids them on a QUOTE — there is nothing here
+                for an investor to authorise.
             - if:
                 properties:
                   cancellation_scope:
@@ -427,7 +507,10 @@ components:
           description: >-
             CANCELLATION_REQUEST, and only on DEPOSIT_PARTIAL, where it carries
             the amount. Every other scope needs no tag at all — the message
-            already says what is being ended and why.
+            already says what is being ended and why. An abandoned chain in
+            particular carries none: the reason travels in
+            cancellation_reason_id, which is why /update's CANCELLATION_INFO
+            group did not come across with it.
 
     QuoteRef:
       type: object
@@ -436,7 +519,8 @@ components:
       description: >-
         A REFERENCE to the cancellation quote minted on the QUOTE round. Mandatory
         on an EXECUTE whose scope is DEPOSIT_FULL or DEPOSIT_PARTIAL, and absent
-        everywhere else — including on scope ORDER, which is not priced. The
+        everywhere else — including on ORDER and ONBOARDING_CHAIN, neither of
+        which is priced. The
         buyer app echoes the id and never the figures; restating a payout it did
         not compute is how two sides come to disagree about what was owed.
       properties:
@@ -556,9 +640,28 @@ components:
         behind. The buyer app picks the scope from the fulfillment state it
         already holds; a scope that does not match is 832022.
       list:
+        - scope: ONBOARDING_CHAIN
+          applies_when: >-
+            No order exists. The chain reached at least one /on_init and never
+            reached /on_confirm, so there is no order id and no fulfillment
+            state to match.
+          quote_required_on_execute: false
+          two_fa: false
+          leaves: >-
+            order CANCELLED with NO id, fulfillment CANCELLED. No payments, no
+            quote, no cancellation_terms — none of them ever existed. The
+            response is TERMINAL: nothing further is pushed on that
+            transaction_id.
+          note: >-
+            The only scope that ends no contract. What it closes is the issuer's
+            own onboarding record, which without this call is held open against
+            verified KYC and no order — the abandoned-chains open point in
+            FIS15_init_API.yaml. QUOTE is not a legal type here: there is
+            nothing to price.
         - scope: ORDER
           applies_when: fulfillment PENDING (unpaid) or INITIATED (paid, not yet booked)
           quote_required_on_execute: false
+          two_fa: true
           leaves: >-
             order CANCELLED, fulfillment CANCELLED. Money collected is refunded
             to the funding account as an appended REFUND entry, inside
@@ -570,6 +673,7 @@ components:
         - scope: DEPOSIT_FULL
           applies_when: fulfillment ACTIVE
           quote_required_on_execute: true
+          two_fa: true
           leaves: >-
             order COMPLETED, fulfillment CLOSED_PREMATURE, and an appended
             ON_FULFILLMENT payment for the net payout.
@@ -581,6 +685,7 @@ components:
         - scope: DEPOSIT_PARTIAL
           applies_when: fulfillment ACTIVE, and PARTIAL_WITHDRAWAL_ALLOWED true
           quote_required_on_execute: true
+          two_fa: true
           leaves: >-
             order ACTIVE and fulfillment ACTIVE — unchanged — with a reduced
             principal, restated DEPOSIT_INFORMATION, and an appended
@@ -593,17 +698,23 @@ components:
       description: >-
         Identical in shape to /confirm, and deliberately so.
       rules:
-        - Every EXECUTE carries PAN, IP_ADDRESS and exactly one of
-          2FA_PHONE_OTP or 2FA_EMAIL_OTP, schema-enforced by minItems and three
-          contains clauses.
+        - Every EXECUTE on scope ORDER, DEPOSIT_FULL or DEPOSIT_PARTIAL carries
+          PAN, IP_ADDRESS and exactly one of 2FA_PHONE_OTP or 2FA_EMAIL_OTP,
+          schema-enforced by minItems and three contains clauses.
         - A QUOTE carries none of them, also schema-enforced. An OTP demanded to
           answer a question teaches investors to approve OTPs for nothing.
+        - An EXECUTE on ONBOARDING_CHAIN carries none of them either, and is
+          schema-barred from carrying them. There is no order, no money and no
+          contract; the credential would authorise the closing of a record the
+          investor has already walked away from.
         - The OTP goes to a contact the ISSUER holds, not one the buyer app
           collected. A mismatch is 832021 and nothing is cancelled.
-        - The flat rule is intentional. Making 2FA conditional on how much money
-          moves would mean an unpaid-order cancellation needs no authentication —
-          and an unpaid order is still a contract the issuer is holding a rate
-          against, and still someone else's to end.
+        - The flat rule ACROSS THE ORDER SCOPES is intentional. Making 2FA
+          conditional on how much money moves would mean an unpaid-order
+          cancellation needs no authentication — and an unpaid order is still a
+          contract the issuer is holding a rate against, and still someone
+          else's to end. The line is drawn at whether an order exists, which the
+          payload states, and not at what it is worth, which it does not.
 
     tag-groups:
 
@@ -655,6 +766,10 @@ components:
         832026: >-
           A cancellation is already in progress on this order. Wait for the
           /on_status that resolves it.
+        832041: >-
+          Chain closure refused — an order already exists for this
+          transaction_id, or the chain is already terminal. Also the answer to
+          an ONBOARDING_CHAIN request that carries an order id.
       reused:
         832021: 2FA credential does not match the contact the issuer holds.
         832033: Unknown order id, or an order belonging to another investor.
@@ -671,28 +786,37 @@ components:
         the effective date of a cancellation is the instant the issuer processes
         it, and the buyer app does not get to choose it.
       - QUOTE CHANGES NOTHING and may be sent as often as the investor moves the
-        slider. It carries no 2FA and no quote id.
-      - EXECUTE ALWAYS CARRIES 2FA. No exceptions by scope, by amount, or by
-        whether money has been collected.
+        slider. It carries no 2FA and no quote id. It is not a legal type on
+        ONBOARDING_CHAIN, where there is nothing to price.
+      - EVERY EXECUTE THAT ENDS AN ORDER CARRIES 2FA — no exceptions by amount,
+        or by whether money has been collected. ONBOARDING_CHAIN ends no order
+        and carries none, and is schema-barred from carrying any.
       - An EXECUTE whose scope is DEPOSIT_FULL or DEPOSIT_PARTIAL must echo the
-        quote id from a QUOTE that has not expired. Scope ORDER must NOT carry
-        one — there is nothing to price, and a quote id there is 832042.
+        quote id from a QUOTE that has not expired. ORDER and ONBOARDING_CHAIN
+        must NOT carry one — there is nothing to price, and a quote id there is
+        832042.
       - The scope must match the fulfillment state. ORDER for PENDING or
         INITIATED, DEPOSIT_FULL and DEPOSIT_PARTIAL for ACTIVE. Anything else is
         832022, including a second cancellation of an order already CANCELLED or
-        COMPLETED.
+        COMPLETED. ONBOARDING_CHAIN matches no fulfillment state because no
+        order exists to hold one.
+      - order_id is MANDATORY ON EVERY SCOPE BUT ONBOARDING_CHAIN, where it is
+        forbidden. An order id sent with that scope is 832041, not 832042 — the
+        buyer app is not sending a malformed abandonment, it is sending an
+        abandonment of something that was booked.
       - WITHDRAWAL_AMOUNT equal to the principal is 832024. A buyer app that
         means to close the deposit says DEPOSIT_FULL; the issuer does not
         promote a scope on the buyer app's behalf.
       - The payout goes to the LINKED_BANK_ACCOUNT of record with role PAYOUT or
         BOTH, and to no account supplied on this call — there is no field for
         one. An issuer asked to pay elsewhere answers 832036.
-      - Ending an onboarding chain that never became an order is NOT this call.
-        It is /update on order.status, it needs no 2FA and no quote, and it
-        carries no order id because none was ever minted.
-      - Servicing a deposit that survives at its original size is NOT this call
-        either. Nominee, maturity instruction, documents and payment links are
-        /update.
+      - Ending an onboarding chain that never became an order IS this call, on
+        scope ONBOARDING_CHAIN. It was an /update on order.status in the
+        previous revision; that target is retired and the two paths are not
+        both valid.
+      - Servicing a deposit that survives at its original size is NOT this call.
+        Nominee, maturity instruction, documents and payment links are /update,
+        and /update no longer terminates anything.
 
     decisions:
       cancel-not-a-booking-chain:
@@ -771,14 +895,48 @@ components:
           delivered alongside it. CLOSED_PREMATURE already exists as a
           fulfillment state and already means exactly this, so a withdrawal-typed
           fulfillment would have been a second way to say what the state says.
-      flat-2fa-rule:
-        change: 2FA is required on every EXECUTE, not only where money moves.
+      abandon-lives-here-not-in-update:
+        change: >-
+          Closing an abandoned onboarding chain is a /cancel on scope
+          ONBOARDING_CHAIN. It was an /update on order.status and it has moved.
         why: >-
-          The conditional version was drafted and discarded. An unpaid order
-          carries no money but is still a contract the issuer is holding a rate
-          against, and still not the buyer app's to end unilaterally. A flat rule
-          is also the only one a schema can enforce without reading the
-          fulfillment state, which the payload does not carry.
+          /update's own first rule is that it changes ONE THING about an order
+          and restates nothing else; a target that terminates a transaction is
+          not a change to an order, and order.status as a target invited exactly
+          the reading the schema then had to forbid — that a booked deposit
+          could be cancelled by a servicing call. Ending things is what /cancel
+          is for, and it already carries the vocabulary: a scope that says what
+          is being ended, a reason id, and a response shape whose terminal
+          states are already defined. The counter-argument that there is nothing
+          to cancel proves too much — /cancel's ORDER scope already ends
+          something with no deposit behind it, and this is the same act one step
+          earlier.
+        cost: >-
+          order_id is no longer unconditionally mandatory on this call, and
+          cancellation_scope now has a value that matches no fulfillment state.
+          Both are stated in the scopes table and enforced by the if/then on
+          CancelMessage rather than left to prose. The alternative — a fifth
+          /update target that terminates — kept order_id simple here at the
+          price of making /update a call that can both service and end, which
+          is the more expensive confusion.
+      two-fa-follows-the-contract:
+        change: >-
+          2FA is required on every EXECUTE that ends an order, and forbidden on
+          the one that ends a chain. The rule reads on scope, not on amount.
+        why: >-
+          The conditional-on-money version was drafted and discarded, and this
+          is not it. An unpaid order carries no money but is still a contract
+          the issuer is holding a rate against, and still not the buyer app's to
+          end unilaterally — so ORDER keeps 2FA. An abandoned chain is not a
+          contract at all: the investor has already stopped, and demanding an
+          OTP to record that they stopped asks them to authenticate their own
+          absence. The line sits where the payload can see it — order_id present
+          or not — so a schema can enforce it without reading fulfillment state.
+        cost: >-
+          The 'every EXECUTE carries 2FA' sentence is no longer literally true
+          and an implementer who remembers only the slogan will send credentials
+          on an abandonment. The schema rejects that rather than ignoring it, so
+          the failure is loud.
 
     open-points:
       retention-offers:
@@ -838,8 +996,12 @@ components:
           PENALTY_TIER schedule the quote is computed from
         - FIS15_on_status_API.yaml — the CLOSED_PREMATURE coupling and the
           append-only ledger the payout joins
+        - FIS15_init_API.yaml open-points.abandoned-chains — "an investor who
+          abandons the chain after KYC leaves the issuer holding verified KYC
+          against no order", which scope ONBOARDING_CHAIN closes
       chains-with:
         - FIS15_on_cancel_API.yaml — answers it
         - FIS15_update_API.yaml — the other post-booking call, and the boundary
-          is stated in both
+          is stated in both. order.status was an /update target in the previous
+          revision and is now scope ONBOARDING_CHAIN here.
       beckn-core: 1.3.0

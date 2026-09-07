@@ -706,14 +706,21 @@ components:
           exposure is the issuer's own and no network cap is needed. Worth
           stating explicitly so implementers do not add one.
       abandoned-chains:
-        status: unresolved
+        status: resolved
         question: >-
           An investor who abandons the chain after KYC leaves the issuer
           holding verified KYC against no order. Nothing expires it.
-        recommendation: >-
-          Define a chain TTL on the terminal-round obligation, or an explicit
-          /update path that abandons a transaction, so the issuer can close its
-          own record.
+        decision: >-
+          /cancel gained cancellation_scope ONBOARDING_CHAIN — an EXECUTE with
+          no order id, no quote and no 2FA, correlated by transaction_id alone,
+          answered by a terminal /on_cancel carrying CANCELLATION_INFO and
+          nothing else. The buyer app closes the record explicitly rather than
+          the issuer inferring abandonment from silence. It was drafted as an
+          /update on order.status in the previous revision and moved to /cancel,
+          which is the call that ends things; see
+          decisions.abandon-lives-here-not-in-update in FIS15_cancel_API.yaml.
+          A chain TTL is still worth having for the investor who abandons
+          without the buyer app noticing, and is not this decision.
 
     source:
       derived-from:
